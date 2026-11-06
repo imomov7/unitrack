@@ -312,6 +312,30 @@ html, body { background: var(--bg); color: var(--text); }
   --calendar-personal: #737b8c;
   --calendar-study: #3555d8;
 }
+
+/* Mobile touch support: avoid hover-only feedback and give controls a reliable
+   tap target. These overrides preserve the existing layout and desktop sizing. */
+button, a, input, select, label { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+@media (max-width: 900px) {
+  .sidebar { -webkit-overflow-scrolling: touch; padding-bottom: max(15px, env(safe-area-inset-bottom)); }
+  .nav-item, .profile-button { min-height: 44px; }
+  .mobile-menu, .icon-button { width: 44px; min-width: 44px; height: 44px; min-height: 44px; }
+  .button, .row-actions button, .row-action-button, .calendar-arrow, .calendar-today,
+  .calendar-view-switch button, .calendar-date, .calendar-week-date, .close-dialog { min-height: 44px; }
+  .calendar-date { width: 44px; height: 44px; }
+  .calendar-week-date { padding: 4px; }
+  .calendar-event { min-height: 32px; touch-action: manipulation; }
+  .dialog-actions { flex-wrap: wrap; }
+  .dialog-actions > * { min-height: 44px; }
+}
+.app-dialog { position: fixed; inset: 50% auto auto 50%; transform: translate(-50%, -50%); margin: 0; }
+.app-dialog:not([open]) { display: none; }
+.app-dialog.dialog-fallback { z-index: 20; box-shadow: 0 0 0 100vmax #080d18b8, 0 20px 80px #0009; }
+@media (max-width: 600px) {
+  .app-dialog { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); padding: 16px; }
+  .dialog-actions { justify-content: stretch; }
+  .dialog-actions > .button { flex: 1 1 auto; }
+}
 .about-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .about-grid .panel { min-height:0; }
 .about-grid .panel p { color:var(--muted); font-size:12px; line-height:1.75; margin:14px 0 0; }
