@@ -178,3 +178,119 @@ body { font-size: 14px; line-height: 1.5; }
   .panel { padding: 17px; }
   .page-content { padding-top: 27px; }
 }
+
+/* Centralized Acadely palette */
+:root {
+  --bg: #101522;
+  --sidebar: #14213d;
+  --surface: #191f30;
+  --surface-raised: #20283a;
+  --surface-input: #151b29;
+  --line: #2a3245;
+  --line-soft: #242c3e;
+  --text: #f1f3f9;
+  --muted: #a0a8ba;
+  --quiet: #a0a8ba;
+  --accent: #6d83ff;
+  --accent-strong: #6d83ff;
+  --accent-soft: #6d83ff24;
+  --success: #21865b;
+  --warning: #d99a32;
+  --error: #d9535d;
+  --chart-track: #2a3245;
+  --control-hover: #293248;
+  --sidebar-text: #c1c9d8;
+  --link: #91a0ff;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f7f8fc;
+  --sidebar: #14213d;
+  --surface: #ffffff;
+  --surface-raised: #f7f8fc;
+  --surface-input: #ffffff;
+  --line: #e6e8ef;
+  --line-soft: #eceef3;
+  --text: #171923;
+  --muted: #687184;
+  --quiet: #687184;
+  --accent: #4361ee;
+  --accent-strong: #4361ee;
+  --accent-soft: #4361ee17;
+  --success: #21865b;
+  --warning: #d99a32;
+  --error: #d9535d;
+  --chart-track: #e6e8ef;
+  --control-hover: #eef1f8;
+  --sidebar-text: #d0d7e5;
+  --link: #3555d8;
+}
+html, body { background: var(--bg); color: var(--text); }
+.sidebar { background: var(--sidebar); border-color: var(--line); }
+.nav-item { color: var(--sidebar-text); }
+.nav-item:hover, .profile-button:hover { background: var(--control-hover); }
+.nav-item.active { color: var(--text); background: var(--accent-soft); box-shadow: inset 2px 0 var(--accent); }
+.active .nav-icon, .nav-item.active .nav-icon { color: var(--accent); }
+.topbar { background: var(--bg); border-color: var(--line-soft); }
+.breadcrumb, .today-label, .workspace-label, .welcome-subtitle, .panel-heading p,
+.stat-foot, .data-row small, .helper-text, .page-footer, .profile-copy small { color: var(--muted); }
+.breadcrumb strong, .panel-heading h2, .welcome-row h1, .stat-value, .data-row strong { color: var(--text); }
+.stat-card, .panel, .form-panel { background: var(--surface); border-color: var(--line); }
+.stat-card:hover, .panel:hover, .stat-link:hover { border-color: var(--accent); }
+.button-primary { background: var(--accent-strong); color: #fff; }
+:root:not([data-theme="light"]) .button-primary { color: #101522; }
+.button-primary:hover { background: color-mix(in srgb, var(--accent-strong) 88%, black); }
+.button-secondary, .row-actions button, .row-action-button, .subtle-button {
+  background: var(--surface-raised); border-color: var(--line); color: var(--muted);
+}
+.button-secondary:hover, .row-actions button:hover, .row-action-button:hover {
+  background: var(--control-hover); border-color: var(--accent); color: var(--text);
+}
+.settings-form input, .inline-form input, .inline-form select, .settings-form select,
+.dialog-fields input, .dialog-fields select, .assignment-tools input, .assignment-tools select,
+.final-grade-form input {
+  background: var(--surface-input); color: var(--text); border-color: var(--line);
+}
+.text-link, .grade-heading a, .empty-link { color: var(--link); }
+.result-box { background: var(--surface-raised); border-color: var(--line); color: var(--muted); }
+.result-box strong { color: var(--accent); }
+.empty-icon { background: var(--accent-soft); border-color: var(--line); color: var(--accent); }
+.empty-state { color: var(--text); }
+.empty-state > span:last-of-type, .empty-state div > span, .grade-placeholder span:last-child { color: var(--muted); }
+.grade-placeholder span:first-child { color: var(--text); }
+.progress-ring { background: conic-gradient(var(--accent) 0deg, var(--chart-track) 0deg 360deg); }
+.progress-ring:before { background: var(--surface); }
+.progress-legend, .grade-heading, .ring-inner strong span { color: var(--muted); }
+.data-progress { background: var(--chart-track); }
+.data-progress span, .week-bars span { background: var(--accent); }
+.week-bars { border-color: var(--line); }
+.week-bars small { color: var(--muted); }
+.priority, .days-badge, .nav-count { background: var(--surface-raised); color: var(--muted); }
+.priority.high { background: color-mix(in srgb, var(--error) 16%, var(--surface)); color: var(--error); }
+.priority.medium { background: color-mix(in srgb, var(--warning) 17%, var(--surface)); color: var(--warning); }
+.priority.low { background: color-mix(in srgb, var(--success) 16%, var(--surface)); color: var(--success); }
+.violet, .blue { color: var(--accent); background: var(--accent-soft); }
+.green { color: var(--success); background: color-mix(in srgb, var(--success) 13%, var(--surface)); }
+.amber { color: var(--warning); background: color-mix(in srgb, var(--warning) 15%, var(--surface)); }
+.completion-mark { color: var(--success); }
+.app-dialog { background: var(--surface); color: var(--text); border-color: var(--line); }
+.app-dialog::backdrop { background: #080d18b8; }
+.close-dialog { color: var(--muted); }
+.toast { background: var(--surface-raised); border-color: var(--line); color: var(--text); }
+.avatar, .top-avatar { background: var(--surface-raised); color: var(--text); border-color: var(--line); }
+
+:root[data-theme="light"] .sidebar { background: var(--sidebar); }
+:root[data-theme="light"] .nav-item { color: var(--sidebar-text); }
+:root[data-theme="light"] .nav-item:hover, :root[data-theme="light"] .profile-button:hover { background: #ffffff16; color: #fff; }
+:root[data-theme="light"] .nav-item.active { background: #4361ee2b; color: #fff; }
+:root[data-theme="light"] .breadcrumb, :root[data-theme="light"] .today-label,
+:root[data-theme="light"] .workspace-label { color: #737b8c; }
+:root[data-theme="light"] .breadcrumb strong, :root[data-theme="light"] .panel-heading h2,
+:root[data-theme="light"] .welcome-row h1, :root[data-theme="light"] .stat-value,
+:root[data-theme="light"] .data-row strong { color: #171923; }
+:root[data-theme="light"] .button-secondary, :root[data-theme="light"] .row-actions button,
+:root[data-theme="light"] .row-action-button, :root[data-theme="light"] .subtle-button { color: #50596b; }
+:root[data-theme="light"] .button-secondary:hover, :root[data-theme="light"] .row-actions button:hover,
+:root[data-theme="light"] .row-action-button:hover { color: #171923; }
+:root[data-theme="light"] .empty-state { color: #171923; }
+:root[data-theme="light"] .app-dialog::backdrop { background: #10152272; }
