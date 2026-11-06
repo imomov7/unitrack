@@ -1,6 +1,6 @@
-# UniTrack
+# ACADELY
 
-UniTrack is a browser-only student productivity workspace built with HTML, CSS, and vanilla JavaScript. No build tools or paid services are required.
+ACADELY is a browser-only student productivity workspace built with HTML, CSS, and vanilla JavaScript. No build tools or paid services are required.
 
 ## Features
 
@@ -15,7 +15,7 @@ UniTrack is a browser-only student productivity workspace built with HTML, CSS, 
 
 ## Run locally
 
-Open `index.html` in a current browser. UniTrack saves information in that browser's LocalStorage. It does not synchronize or back up data to the cloud. Export a JSON copy from Settings if you want to move your data to another browser.
+Open `index.html` in a current browser. ACADELY saves information in that browser's LocalStorage. It does not synchronize or back up data to the cloud. Export a JSON copy from Settings if you want to move your data to another browser.
 
 ## Main files
 
