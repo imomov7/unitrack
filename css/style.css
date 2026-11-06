@@ -336,6 +336,11 @@ button, a, input, select, label { touch-action: manipulation; -webkit-tap-highli
   .dialog-actions { justify-content: stretch; }
   .dialog-actions > .button { flex: 1 1 auto; }
 }
+
+/* Keep the first-run card separate from the dashboard metrics, and let the
+   lower navigation continue directly after the workspace links. */
+.welcome-row + .panel { margin-bottom: 18px; }
+.sidebar-bottom { margin-top: 12px; }
 .about-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .about-grid .panel { min-height:0; }
 .about-grid .panel p { color:var(--muted); font-size:12px; line-height:1.75; margin:14px 0 0; }
