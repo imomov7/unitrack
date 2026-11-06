@@ -1,70 +1,543 @@
-// UniTrack's small, browser-only data layer and screen controller.
+// UniTrack browser data layer, page rendering, and event handlers.
+// Keep KEY stable so existing student data remains available after upgrades.
 const KEY = 'unitrack-data-v1';
-const defaults = { profile: 'Student', settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, gradeScale: [{letter:'A',min:90,gpa:4},{letter:'B',min:80,gpa:3},{letter:'C',min:70,gpa:2},{letter:'D',min:60,gpa:1},{letter:'F',min:0,gpa:0}] }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [] };
-let data = load();
-let currentPage = 'dashboard';
+const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions'];
+const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, settings, overview, planner };
+const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grade calculator', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner' };
+const content = document.querySelector('.page-content');
+const toast = document.querySelector('#toast');
 let toastTimer;
 let assignmentFilter = 'all';
 let assignmentSearch = '';
-const content = document.querySelector('.page-content');
-const toast = document.querySelector('#toast');
+let data = load();
+let currentPage = validRoute(location.hash.slice(1)) || 'dashboard';
 
-function load(){try{const stored=JSON.parse(localStorage.getItem(KEY)||'{}');if(!stored||typeof stored!=='object'||Array.isArray(stored))return structuredClone(defaults);const merged={...structuredClone(defaults),...stored,settings:{...structuredClone(defaults.settings),...(stored.settings||{})}};for(const key of ['courses','assignments','assessments','classes','exams','sessions'])if(!Array.isArray(merged[key]))merged[key]=[];if(!Array.isArray(merged.settings.gradeScale))merged.settings.gradeScale=structuredClone(defaults.settings.gradeScale);return merged}catch{return structuredClone(defaults)}}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(data));render()}catch{msg('UniTrack could not save in this browser. Check available storage space or browser privacy settings.')}}
-function esc(value=''){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
-function msg(message){toast.textContent=message;toast.classList.add('visible');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('visible'),2600)}
-function dateLabel(date){return date?new Date(`${date}T12:00:00`).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'No date'}
-function courseName(id){return data.courses.find(c=>c.id===id)?.name||'Unassigned'}
-function selectCourses(selected=''){return `<option value="">Choose a course</option>${data.courses.map(c=>`<option value="${c.id}" ${c.id===selected?'selected':''}>${esc(c.name)}</option>`).join('')}`}
-function button(label,action,kind='secondary'){return `<button type="button" class="button button-${kind}" data-action="${action}">${label}</button>`}
-function stat(label,value,caption,route=''){const inner=`<div class="stat-top"><span>${label}</span></div><div class="stat-value">${value}</div><div class="stat-foot"><span class="neutral-dot"></span>${caption}</div>`;return route?`<a class="stat-card stat-link" href="#${route}">${inner}</a>`:`<article class="stat-card">${inner}</article>`}
-function empty(title,description,kind=''){return `<div class="empty-state compact">${kind?`<button type="button" class="empty-icon empty-add" data-action="add" data-kind="${kind}" aria-label="Add ${kind}">＋</button>`:'<span class="empty-icon">＋</span>'}<strong>${title}</strong><span>${description}</span></div>`}
-function card(title,subtitle,body,action=''){return `<article class="panel"><div class="panel-heading"><div><h2>${title}</h2><p>${subtitle}</p></div>${action}</div>${body}</article>`}
-function pageHeader(title,sub,add=''){return `<section class="welcome-row"><div><div class="eyebrow">UNITRACK WORKSPACE</div><h1>${title}<span class="title-period">.</span></h1><p class="welcome-subtitle">${sub}</p></div>${add}</section>`}
-function addButton(label){return button(`<span class="plus">+</span> ${label}`,'add','primary')}
-function progressBar(value){return `<div class="data-progress"><span style="width:${Math.max(0,Math.min(100,value))}%"></span></div>`}
-function courseProgress(courseId){return UniTrackMath.courseProgress(data.assessments,courseId)}
-function dashboard(){const pending=data.assignments.filter(a=>!a.done),completed=data.assignments.filter(a=>a.done),exams=data.exams.filter(e=>e.date>=today()).sort((a,b)=>a.date.localeCompare(b.date));const next=[...pending].sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999')).slice(0,4);const plans=makePlan().slice(0,3);const pct=data.assignments.length?Math.round(completed.length/data.assignments.length*100):0;
-return `${pageHeader(`Good ${new Date().getHours()<12?'morning':new Date().getHours()<18?'afternoon':'evening'}`, 'Your academic workspace, all in one place.',addButton('Quick add'))}<section class="stats-grid">${stat('Total assignments',data.assignments.length,'Across all your courses','assignments')}${stat('Pending',pending.length,'Keep your next deadline in sight','assignments')}${stat('Completed',completed.length,'Your completed work','assignments')}${stat('Upcoming exams',exams.length,'Exams on your calendar','exams')}</section><section class="dashboard-grid">${card('Smart study plan','Suggested focus for today',plans.length?plans.map(planRow).join(''):`<div class="empty-state compact"><strong>No study sessions suggested yet</strong><span>Add an assignment or exam to build your plan.</span></div>`,`<a class="text-link" href="#planner">View plan ↗</a>`)}${card('Semester progress','Assignment completion',`<div class="progress-summary"><div class="progress-ring"><div class="ring-inner"><strong>${pct}<span>%</span></strong><small>completed</small></div></div><div class="progress-legend">${completed.length} complete · ${pending.length} remaining</div></div><div class="grade-placeholder">${data.courses.length?`${data.courses.length} courses configured`:'Set up courses to see grade summaries'}</div>`,`<a class="text-link" href="#overview">Overview ↗</a>`)}${card('Upcoming deadlines','Your nearest assignments',next.length?next.map(a=>`<div class="data-row"><div><strong>${esc(a.title)}</strong><small>${esc(courseName(a.courseId))} · ${dateLabel(a.due)}</small></div><span class="priority ${esc(a.priority||'Medium').toLowerCase()}">${esc(a.priority||'Medium')}</span></div>`).join(''):empty('No deadlines coming up','Add assignments and their due dates will appear here.','assignment'),`<a class="text-link" href="#assignments">Assignments ↗</a>`)}${card('Upcoming exams','Next on your calendar',exams.slice(0,3).length?exams.slice(0,3).map(e=>`<div class="data-row"><div><strong>${esc(e.title)}</strong><small>${esc(courseName(e.courseId))} · ${dateLabel(e.date)}</small></div><span class="days-badge">${daysUntil(e.date)}d</span></div>`).join(''):empty('No exams scheduled','Your upcoming exams will appear here.','exam'),`<a class="text-link" href="#exams">Exams ↗</a>`)}</section>`}
-function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
-function daysUntil(date){return Math.ceil((new Date(`${date}T00:00:00`)-new Date(`${today()}T00:00:00`))/86400000)}
-function navRows(items,kind){return items.length?items.map(item=>`<div class="data-row"><div><strong>${esc(item.title||item.name)}</strong><small>${esc(courseName(item.courseId))}${item.due||item.date?' · '+dateLabel(item.due||item.date):''}${item.description?' · '+esc(item.description):''}</small></div><div class="row-actions">${kind==='assignments'?`<button data-action="toggle" data-id="${item.id}">${item.done?'Undo':'Complete'}</button>`:''}<button data-action="edit" data-kind="${kind}" data-id="${item.id}">Edit</button><button data-action="delete" data-kind="${kind}" data-id="${item.id}">Delete</button></div></div>`).join(''):empty('Nothing here yet',`Add ${kind} to keep everything organized.`)}
-function assignments(){const visible=data.assignments.filter(a=>{const overdue=!a.done&&a.due&&a.due<today();const matches=assignmentFilter==='all'||assignmentFilter==='pending'&&!a.done&& !overdue||assignmentFilter==='completed'&&a.done||assignmentFilter==='overdue'&&overdue;return matches&&`${a.title} ${courseName(a.courseId)} ${a.description||''}`.toLowerCase().includes(assignmentSearch.toLowerCase())}).sort((a,b)=>(a.due||'9999').localeCompare(b.due||'9999'));const rows=visible.length?visible.map(a=>`<div class="data-row"><div><strong>${esc(a.title)}${!a.done&&a.due<today()?' <span class="overdue-tag">Overdue</span>':''}</strong><small>${esc(courseName(a.courseId))} · ${dateLabel(a.due)} · ${esc(a.priority||'Medium')} priority${a.description?' · '+esc(a.description):''}</small></div><div class="row-actions"><button data-action="toggle" data-id="${a.id}">${a.done?'Undo':'Complete'}</button><button data-action="edit" data-kind="assignments" data-id="${a.id}">Edit</button><button data-action="delete" data-kind="assignments" data-id="${a.id}">Delete</button></div></div>`).join(''):empty('No matching assignments','Try a different filter or add an assignment.','assignment');return `${pageHeader('Assignments','Keep track of coursework, priorities, and due dates.',addButton('Add assignment'))}<div class="assignment-tools"><label>Search<input id="assignment-search" type="search" value="${esc(assignmentSearch)}" placeholder="Search assignments"></label><label>Status<select id="assignment-filter"><option value="all" ${assignmentFilter==='all'?'selected':''}>All assignments</option><option value="pending" ${assignmentFilter==='pending'?'selected':''}>Pending</option><option value="completed" ${assignmentFilter==='completed'?'selected':''}>Completed</option><option value="overdue" ${assignmentFilter==='overdue'?'selected':''}>Overdue</option></select></label></div>${card('Assignments','Sorted by due date',rows)}`}
-function gradePage(){const courseOptions=data.courses.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('');return `${pageHeader('Grade calculator','Track assessment weights and explore what-if outcomes.',button('Add assessment','add-assessment','primary'))}<section class="form-panel"><form id="whatif-form" class="inline-form"><label>Course<select name="courseId" required>${courseOptions}</select></label><label>Target final grade (%)<input name="target" type="number" min="0" max="100" value="90" required></label><label>Hypothetical score (%)<input name="hypothetical" type="number" min="0" max="100" placeholder="Optional"></label><button class="button button-primary">Calculate</button></form><div id="whatif-result" class="result-box">Add assessments with their earned marks, maximum marks, and course weights, then calculate a target.</div></section>${card('Assessments','Completed marks contribute according to their configured weight',data.assessments.length?data.assessments.map(a=>`<div class="data-row"><div><strong>${esc(a.title)} · ${esc(courseName(a.courseId))}</strong><small>${a.score}/${a.max} marks · ${a.weight}% weight</small></div><div class="row-actions"><button data-action="delete" data-kind="assessments" data-id="${a.id}">Delete</button></div></div>`).join(''):empty('No assessments yet','Add a course and assessment to begin.'))}`}
-function timetable(){const order=['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];const rows=data.classes.slice().sort((a,b)=>order.indexOf(a.day)-order.indexOf(b.day)||String(a.start).localeCompare(String(b.start)));return `${pageHeader('Timetable','Your weekly class schedule.',addButton('Add class'))}${card('Weekly classes','Classes are ordered by weekday and start time',rows.length?rows.map(c=>`<div class="data-row"><div><strong>${esc(c.day)} · ${esc(c.title)}</strong><small>${esc(c.start)}–${esc(c.end)} · ${esc(courseName(c.courseId))} · ${esc(c.location||'Location not set')}</small></div><div class="row-actions"><button data-action="edit" data-kind="classes" data-id="${c.id}">Edit</button><button data-action="delete" data-kind="classes" data-id="${c.id}">Delete</button></div></div>`).join(''):empty('No classes scheduled','Add your classes to see your weekly timetable.','class'))}`}
-function exams(){return `${pageHeader('Exams','See what is coming and prepare early.',addButton('Add exam'))}${card('Exam calendar','Upcoming and past exams',data.exams.length?navRows(data.exams,'exams'):empty('No exams scheduled','Add an exam to track its date and countdown.','exam'))}`}
-function gpa(){const credits=data.courses.reduce((s,c)=>s+Number(c.credits||0),0);const graded=data.courses.map(c=>({course:c,grade:courseProgress(c.id).grade})).filter(x=>x.grade!==null);const gradedCredits=graded.reduce((s,x)=>s+Number(x.course.credits||0),0);const gpaValue=gradedCredits?graded.reduce((s,x)=>s+(Number(x.course.credits||0)*gradePoints(x.grade)),0)/gradedCredits:null;return `${pageHeader('GPA calculator','Calculate a credit-weighted GPA using your configured scale.',addButton('Add course'))}<section class="stats-grid">${stat('Courses',data.courses.length,'Configured courses')}${stat('Total credits',credits,'Credits across courses')}${stat('Semester GPA',gpaValue===null?'—':gpaValue.toFixed(2),`On your ${data.settings.maxGpa} point scale`)}</section>${card('Courses','Course credits and grade estimates',data.courses.length?data.courses.map(c=>{const p=courseProgress(c.id);return `<div class="data-row"><div><strong>${esc(c.name)}</strong><small>${Number(c.credits||0)} credits · ${p.grade===null?'No assessments':`${p.grade.toFixed(1)}% current · ${letter(p.grade)} · ${gradePoints(p.grade).toFixed(2)} GPA`}</small></div><div class="row-actions"><button data-action="edit" data-kind="courses" data-id="${c.id}">Edit</button><button data-action="delete" data-kind="courses" data-id="${c.id}">Delete</button></div></div>`}).join(''):empty('No courses yet','Add courses to calculate your GPA.'))}`}
-function letter(score){return (data.settings.gradeScale||[]).slice().sort((a,b)=>b.min-a.min).find(g=>score>=g.min)?.letter||'—'}
-function gradePoints(score){return Number((data.settings.gradeScale||[]).slice().sort((a,b)=>b.min-a.min).find(g=>score>=g.min)?.gpa||0)}
-function settings(){const s=data.settings;return `${pageHeader('Settings','Configure your university and academic grading system.')}${card('University & semester','This information personalizes your academic overview',`<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(s.university)}" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(s.semester)}" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(s.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(s.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${s.maxGpa}"></label><label>Available study hours per day<input name="availableHours" type="number" min="0.5" max="16" step="0.5" value="${s.availableHours}"></label></div><h3>Grade boundaries</h3><p class="helper-text">Set minimum percentage and GPA points for each letter grade.</p><div class="scale-list">${s.gradeScale.map((g,i)=>`<div class="scale-row"><input aria-label="Letter grade" data-scale="letter" data-index="${i}" value="${esc(g.letter)}"><input aria-label="Minimum percentage" data-scale="min" data-index="${i}" type="number" min="0" max="100" value="${g.min}"><input aria-label="GPA points" data-scale="gpa" data-index="${i}" type="number" min="0" max="20" step="0.1" value="${g.gpa}"></div>`).join('')}</div><button type="button" class="row-action-button" data-action="scale-add">+ Add grade boundary</button><div>${button('Save university settings','settings-save','primary')}</div></form>`)}${card('Data storage','Your data stays in this browser',`<p class="helper-text">UniTrack uses LocalStorage on this device. It does not sync or back up your data to the cloud.</p><div class="row-actions">${button('Export JSON','export') }<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json" id="import-file" hidden></label></div>`)}`}
-function overview(){const total=data.assignments.length,done=data.assignments.filter(a=>a.done).length,pct=total?Math.round(done/total*100):0;const exams=data.exams.filter(e=>e.date>=today()).sort((a,b)=>a.date.localeCompare(b.date));const deadlines=data.assignments.filter(a=>!a.done&&a.due>=today()).sort((a,b)=>a.due.localeCompare(b.due));const workload=data.assignments.filter(a=>!a.done).length+exams.length;const weeks=weekSessions();return `${pageHeader('Semester overview',`${esc(data.settings.semester||'Your semester')} · ${esc(data.settings.university||'Configure your university in Settings')}`)}<section class="stats-grid">${stat('Assignment progress',`${pct}%`,`${done} of ${total} completed`)}${stat('Upcoming exams',exams.length,'Scheduled future exams')}${stat('Upcoming deadlines',deadlines.length,'Pending assignments with due dates')}${stat('Remaining workload',workload,'Pending assignments and exams')}</section><section class="overview-grid">${card('Course grades','Calculated from entered assessment marks and weights',data.courses.length?data.courses.map(c=>{const p=courseProgress(c.id);return `<div class="course-progress"><div class="data-row"><div><strong>${esc(c.name)}</strong><small>${p.grade===null?'No graded assessments':`${p.grade.toFixed(1)}% · ${letter(p.grade)} · ${c.credits||0} credits`}</small></div><strong>${p.grade===null?'—':`${p.grade.toFixed(0)}%`}</strong></div>${progressBar(p.grade||0)}</div>`}).join(''):empty('No courses configured','Add courses and assessments to see grades.'))}${card('Weekly productivity','Study sessions completed this week',`<div class="week-bars">${weeks.map(w=>`<div><span style="height:${w.count?Math.min(100,w.count*22):3}%"></span><small>${w.day}</small></div>`).join('')}</div><p class="helper-text">${data.sessions.filter(s=>s.done&&isThisWeek(s.date)).length} completed sessions this week. Only recorded sessions are counted.</p>`)}${card('Completed assessments','Completed assignment work',done?data.assignments.filter(a=>a.done).map(a=>`<div class="data-row"><div><strong>${esc(a.title)}</strong><small>${esc(courseName(a.courseId))}${a.due?' · '+dateLabel(a.due):''}</small></div><span class="completion-mark">✓</span></div>`).join(''):empty('No completed assessments','Mark assignments complete to see them here.'))}${card('Upcoming dates','Deadlines and exams',deadlines.length||exams.length?[...deadlines.map(a=>({title:a.title,date:a.due,type:'Assignment'})),...exams.map(e=>({title:e.title,date:e.date,type:'Exam'}))].sort((a,b)=>a.date.localeCompare(b.date)).slice(0,6).map(x=>`<div class="data-row"><div><strong>${esc(x.title)}</strong><small>${x.type} · ${dateLabel(x.date)}</small></div><span class="days-badge">${daysUntil(x.date)}d</span></div>`).join(''):empty('No upcoming dates','Add assignment deadlines and exams to plan your semester.'))}</section>`}
-function weekSessions(){const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];return days.map((day,i)=>{const d=new Date();d.setDate(d.getDate()-((d.getDay()+6)%7)+i);const iso=d.toISOString().slice(0,10);return {day,count:data.sessions.filter(s=>s.done&&s.date===iso).length}})}
-function isThisWeek(iso){const date=new Date(`${iso}T12:00:00`),now=new Date();return date>=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7))&&date<=new Date(now.getFullYear(),now.getMonth(),now.getDate()+6)}
-function makePlan(){const tasks=[...data.assignments.filter(a=>!a.done&&a.due),...data.exams.filter(e=>e.date>=today()).map(e=>({...e,due:e.date,priority:'High',exam:true}))].sort((a,b)=>{const score=x=>{const days=daysUntil(x.due);return days<0?500+Math.min(100,Math.abs(days)):-days*20+(x.priority==='High'?30:x.priority==='Medium'?20:10)};return score(b)-score(a)});let remaining=Number(data.settings.availableHours)||2;const plans=[];for(const task of tasks){if(remaining<=0)break;const wanted=Number(task.studyHours)||(task.exam?1.5:1);const hours=Math.min(remaining,wanted);plans.push({task,hours,why:daysUntil(task.due)<0?'Overdue work prioritized':daysUntil(task.due)<=2?'Due very soon':task.exam?'Upcoming exam preparation':task.priority==='High'?'High priority deadline':'Earlier deadline prioritized',date:task.due});remaining-=hours}return plans}
-function planRow(p){return `<div class="data-row"><div><strong>${esc(p.task.title)} <small>· ${p.hours}h</small></strong><small>${esc(courseName(p.task.courseId))} · ${dateLabel(p.date)} · ${esc(p.why)}</small></div></div>`}
-function planner(){const plans=makePlan();const saved=data.sessions;return `${pageHeader('Smart study planner','A transparent daily plan based on your deadlines and available hours.',button('Refresh suggestions','refresh-plan'))}${card('Suggested sessions','Urgency uses priority and time to deadline. Suggestions are estimates you can adjust.',plans.length?plans.map(p=>`<div class="data-row"><div><strong>${esc(p.task.title)} · ${p.hours} hour${p.hours===1?'':'s'}</strong><small>${esc(p.why)} · ${dateLabel(p.date)}</small></div><div class="row-actions"><button data-action="save-plan" data-id="${p.task.id}" data-exam="${p.task.exam||false}" data-hours="${p.hours}" data-date="${p.date}">Add to plan</button></div></div>`).join(''):empty('Nothing to schedule','Add an assignment or exam with a due date to receive a suggestion.'))}${card('Your study sessions','Saved sessions can be completed, edited, or removed.',saved.length?saved.map(s=>`<div class="data-row"><div><strong>${esc(s.title)} · ${s.hours}h ${s.done?'<span class="completion-mark">✓ Done</span>':''}</strong><small>${dateLabel(s.date)} · ${esc(s.reason||'Personal session')}</small></div><div class="row-actions"><button data-action="session-toggle" data-id="${s.id}">${s.done?'Undo':'Complete'}</button><button data-action="session-edit" data-id="${s.id}">Edit</button><button data-action="session-delete" data-id="${s.id}">Delete</button></div></div>`).join(''):empty('No saved sessions','Add suggestions to create a personal study plan.'))}${card('Your available time','Daily study time is configurable in Settings',`<p class="helper-text">${Number(data.settings.availableHours)||2} study hours/day. The planner ranks work by priority and time to deadline. Suggestions are estimates; timetable classes are not counted as study availability.</p><a class="text-link" href="#settings">Adjust study availability ↗</a>`)}`}
-function render(){document.querySelectorAll('.nav-item').forEach(a=>{const active=a.dataset.page===currentPage;a.classList.toggle('active',active);if(active)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});const count=document.querySelector('.nav-count');if(count)count.textContent=data.assignments.filter(a=>!a.done).length;document.querySelector('.breadcrumb strong').textContent=labels[currentPage]||'Dashboard';content.innerHTML=views[currentPage]();bindPage()}
-const labels={dashboard:'Dashboard',assignments:'Assignments',grades:'Grade calculator',timetable:'Timetable',exams:'Exams',gpa:'GPA calculator',settings:'Settings',overview:'Semester overview',planner:'Smart study planner'};
-const views={dashboard,assignments,grades:gradePage,timetable,exams,gpa,settings,overview,planner};
-function bindPage(){const form=document.querySelector('#settings-form');if(form)form.addEventListener('submit',saveSettings);const wf=document.querySelector('#whatif-form');if(wf)wf.addEventListener('submit',calculateWhatIf)}
+function defaultScale(maxGpa = 4) {
+  const max = Number(maxGpa) || 4;
+  return [
+    { letter: 'A', min: 90, gpa: max },
+    { letter: 'B', min: 80, gpa: max * 0.75 },
+    { letter: 'C', min: 70, gpa: max * 0.5 },
+    { letter: 'D', min: 60, gpa: max * 0.25 },
+    { letter: 'F', min: 0, gpa: 0 },
+  ];
+}
 
-function dialog(title,fields,kind){const modal=document.createElement('dialog');modal.className='app-dialog';modal.innerHTML=`<form id="entry-form"><div class="panel-heading"><div><h2>${title}</h2><p>Fields marked required must be completed.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields">${fields}</div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button type="submit" class="button button-primary">Save</button></div></form>`;document.body.append(modal);modal.showModal();modal.querySelectorAll('[data-cancel]').forEach(button=>button.addEventListener('click',()=>modal.close()));modal.querySelector('#entry-form').addEventListener('submit',e=>{e.preventDefault();const fd=new FormData(e.currentTarget);const obj=Object.fromEntries(fd);if(!obj.title?.trim()&&kind!=='course'){msg('Please enter a title.');return}if(obj.due&&obj.due<today()){if(!confirm('This date is in the past. Save anyway?'))return}obj.id=crypto.randomUUID();if(kind==='assessment'){obj.score=Number(obj.score);obj.max=Number(obj.max);obj.weight=Number(obj.weight);const totalWeight=data.assessments.filter(a=>a.courseId===obj.courseId).reduce((sum,a)=>sum+Number(a.weight),0);if(obj.score<0||obj.max<=0||obj.score>obj.max||obj.weight<=0||totalWeight+obj.weight>100.0001){msg('Check the score and maximum marks, and keep this course’s total assessment weight at or below 100%.');return}}if(kind==='course'){obj.credits=Number(obj.credits);if(obj.credits<=0){msg('Credits must be greater than zero.');return}}if(kind==='class'&&obj.start>=obj.end){msg('Class end time must be after its start time.');return}(data[{assignment:'assignments',assessment:'assessments',class:'classes',exam:'exams',course:'courses'}[kind]]).push(obj);modal.close();save();msg(`${title} saved.`)});modal.addEventListener('close',()=>modal.remove())}
-function add(kind){const course=selectCourses();const fields={assignment:`<label>Title<input name="title" required maxlength="100"></label><label>Course<select name="courseId">${course}</select></label><label>Description<input name="description" maxlength="240"></label><label>Due date<input name="due" type="date"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="2"></label><label>Priority<select name="priority"><option>Medium</option><option>High</option><option>Low</option></select></label>`,assessment:`<label>Assessment name<input name="title" required></label><label>Course<select name="courseId" required>${course}</select></label><div class="two-fields"><label>Score<input name="score" type="number" min="0" step="any" required></label><label>Maximum marks<input name="max" type="number" min="0.01" step="any" required></label></div><label>Weight (%)<input name="weight" type="number" min="0.01" max="100" step="any" required></label>`,class:`<label>Class name<input name="title" required></label><label>Course<select name="courseId">${course}</select></label><label>Day<select name="day">${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option>${d}</option>`).join('')}</select></label><div class="two-fields"><label>Start<input type="time" name="start" required></label><label>End<input type="time" name="end" required></label></div><label>Room or location<input name="location"></label>`,exam:`<label>Exam name<input name="title" required></label><label>Course<select name="courseId">${course}</select></label><label>Exam date<input name="date" type="date" required></label>`,course:`<label>Course name<input name="name" required></label><label>Credit hours<input name="credits" type="number" min="0.1" step="0.1" value="3" required></label>`};dialog(`Add ${kind}`,fields[kind],kind)}
-function editRecord(collection,id){const record=data[collection]?.find(item=>item.id===id);if(!record)return;const kind={assignments:'assignment',exams:'exam',classes:'class',courses:'course'}[collection];if(!kind){msg('This record type cannot be edited here yet.');return}const course=selectCourses(record.courseId);const fields={assignment:`<label>Title<input name="title" value="${esc(record.title)}" required></label><label>Course<select name="courseId">${course}</select></label><label>Description<input name="description" value="${esc(record.description||'')}"></label><label>Due date<input name="due" type="date" value="${esc(record.due||'')}"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="${Number(record.studyHours)||2}"></label><label>Priority<select name="priority">${['Low','Medium','High'].map(p=>`<option ${record.priority===p?'selected':''}>${p}</option>`).join('')}</select></label>`,exam:`<label>Exam name<input name="title" value="${esc(record.title)}" required></label><label>Course<select name="courseId">${course}</select></label><label>Exam date<input name="date" type="date" value="${esc(record.date)}" required></label>`,class:`<label>Class name<input name="title" value="${esc(record.title)}" required></label><label>Course<select name="courseId">${course}</select></label><label>Day<select name="day">${['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].map(d=>`<option ${record.day===d?'selected':''}>${d}</option>`).join('')}</select></label><div class="two-fields"><label>Start<input type="time" name="start" value="${esc(record.start)}" required></label><label>End<input type="time" name="end" value="${esc(record.end)}" required></label></div><label>Room<input name="location" value="${esc(record.location||'')}"></label>`,course:`<label>Course name<input name="name" value="${esc(record.name)}" required></label><label>Credit hours<input name="credits" type="number" min="0.1" step="0.1" value="${Number(record.credits)||3}" required></label>`};const modal=document.createElement('dialog');modal.className='app-dialog';modal.innerHTML=`<form id="edit-form"><div class="panel-heading"><div><h2>Edit ${kind}</h2><p>Update the saved details.</p></div><button class="close-dialog" type="button" data-close>×</button></div><div class="dialog-fields">${fields[kind]}</div><div class="dialog-actions"><button type="button" class="button button-secondary" data-close>Cancel</button><button class="button button-primary">Save changes</button></div></form>`;document.body.append(modal);modal.showModal();modal.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',()=>modal.close()));modal.querySelector('form').addEventListener('submit',e=>{e.preventDefault();const updated=Object.fromEntries(new FormData(e.currentTarget));if(kind==='course'){updated.credits=Number(updated.credits);if(updated.credits<=0)return msg('Credits must be positive.')}if(kind==='assignment'){updated.studyHours=Number(updated.studyHours);if(updated.studyHours<=0)return msg('Study hours must be positive.')}if(kind==='class'&&updated.start>=updated.end)return msg('Class end time must follow start time.');Object.assign(record,updated);modal.close();save();msg(`${kind} updated.`)});modal.addEventListener('close',()=>modal.remove())}
-function saveSettings(e){e.preventDefault();const previous=structuredClone(data.settings);const fd=new FormData(e.currentTarget);for(const k of ['university','semester','start','end'])data.settings[k]=fd.get(k);data.settings.maxGpa=Number(fd.get('maxGpa'));data.settings.availableHours=Number(fd.get('availableHours'));if(data.settings.start&&data.settings.end&&data.settings.start>data.settings.end){data.settings=previous;msg('Semester end must be after its start.');return}const rows=[...document.querySelectorAll('[data-scale="letter"]')];const scale=rows.map((input,i)=>({letter:input.value.trim().toUpperCase(),min:Number(document.querySelector(`[data-scale="min"][data-index="${i}"]`).value),gpa:Number(document.querySelector(`[data-scale="gpa"][data-index="${i}"]`).value)}));if(scale.some(g=>!g.letter||g.min<0||g.min>100||g.gpa<0||g.gpa>data.settings.maxGpa)||new Set(scale.map(g=>g.letter)).size!==scale.length||new Set(scale.map(g=>g.min)).size!==scale.length){data.settings=previous;msg('Grade boundaries must be unique and within the selected scales.');return}data.settings.gradeScale=scale;save();msg('University settings saved.')}
-function calculateWhatIf(e){e.preventDefault();const fd=new FormData(e.currentTarget);const courseId=fd.get('courseId'),target=Number(fd.get('target')),hyp=fd.get('hypothetical')===''?null:Number(fd.get('hypothetical'));if(target<0||target>100||hyp!==null&&(hyp<0||hyp>100)){msg('Grades must be between 0 and 100%.');return}const p=courseProgress(courseId),result=document.querySelector('#whatif-result');if(!p.total){result.textContent='Add weighted assessments for this course first.';return}const calculation=UniTrackMath.requiredAverage(p.grade,p.total,target);if(calculation.error==='no-remaining-weight'){result.innerHTML=`All course weight is allocated. Current weighted grade: <strong>${p.grade.toFixed(2)}%</strong>.`;return}if(calculation.error){msg('Check the assessment weights and target grade.');return}if(!calculation.possible){result.innerHTML=`<strong>Target is mathematically unreachable.</strong> You would need ${calculation.required.toFixed(2)}% across the remaining ${calculation.remaining.toFixed(2)}% of the course. Maximum possible final grade is ${calculation.maximum.toFixed(2)}%.`;return}const projected=hyp===null?null:UniTrackMath.projectedGrade(p.grade,p.total,hyp);result.innerHTML=`You need an average of <strong>${Math.max(0,calculation.required).toFixed(2)}%</strong> across the remaining ${calculation.remaining.toFixed(2)}% of the course to reach ${target}%.${projected===null?'':` With a hypothetical ${hyp}% average, your projected final grade is <strong>${projected.toFixed(2)}%</>.`}`}
-document.addEventListener('click',e=>{const link=e.target.closest('.nav-item');if(link){e.preventDefault();currentPage=link.dataset.page||'dashboard';closeMenu();render();return}const b=e.target.closest('[data-action]');if(!b)return;const action=b.dataset.action;if(action==='add'){if(!data.courses.length){msg('Add a course first in GPA Calculator.');currentPage='gpa';render();return}const kind={assignments:'assignment',timetable:'class',exams:'exam',gpa:'course'}[currentPage];if(kind)add(kind);else add('assignment')}if(action==='add-assessment')add('assessment');if(action==='delete'){if(confirm('Delete this item?')){data[b.dataset.kind]=data[b.dataset.kind].filter(x=>x.id!==b.dataset.id);save();msg('Item deleted.')}}if(action==='toggle'){const a=data.assignments.find(x=>x.id===b.dataset.id);a.done=!a.done;save()}if(action==='save-plan'){const item=b.dataset.exam==='true'?data.exams.find(x=>x.id===b.dataset.id):data.assignments.find(x=>x.id===b.dataset.id);if(item){data.sessions.push({id:crypto.randomUUID(),title:item.title,courseId:item.courseId,date:b.dataset.date,hours:Number(b.dataset.hours),reason:b.dataset.exam==='true'?'Exam preparation':'Deadline-focused study',done:false,sourceId:item.id});save();msg('Study session added.')}}if(action==='session-toggle'){const s=data.sessions.find(x=>x.id===b.dataset.id);s.done=!s.done;save()}if(action==='session-delete'){if(confirm('Delete this study session?')){data.sessions=data.sessions.filter(s=>s.id!==b.dataset.id);save()}}if(action==='session-edit'){const s=data.sessions.find(x=>x.id===b.dataset.id);const hours=prompt('Study hours',s.hours),date=prompt('Session date (YYYY-MM-DD)',s.date);if(hours===null||date===null)return;if(Number(hours)<=0||Number(hours)>16||!/^\d{4}-\d{2}-\d{2}$/.test(date)){msg('Enter between 0 and 16 hours and a valid date.');return}s.hours=Number(hours);s.date=date;save()}if(action==='settings-save')document.querySelector('#settings-form').requestSubmit();if(action==='scale-add'){data.settings.gradeScale.push({letter:'',min:0,gpa:0});render()}if(action==='export'){const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='unitrack-data.json';a.click();URL.revokeObjectURL(url)}if(action==='refresh-plan')render()});
-document.addEventListener('change',e=>{if(e.target.id==='import-file'){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);if(!imported||!Array.isArray(imported.assignments)||!Array.isArray(imported.courses))throw Error();data={...structuredClone(defaults),...imported};save();msg('Data imported.')}catch{msg('That file is not a valid UniTrack export.')}};reader.readAsText(file)}});
-document.querySelector('#menu-toggle').addEventListener('click',()=>{document.querySelector('#sidebar').classList.toggle('open');document.querySelector('#mobile-overlay').classList.toggle('visible')});document.querySelector('#mobile-overlay').addEventListener('click',closeMenu);function closeMenu(){document.querySelector('#sidebar').classList.remove('open');document.querySelector('#mobile-overlay').classList.remove('visible')}
-document.querySelector('.icon-button').addEventListener('click',()=>msg('You’re all caught up.'));
-document.querySelector('.profile-button').addEventListener('click',()=>{currentPage='settings';render()});
-document.querySelector('#top-date').textContent=new Intl.DateTimeFormat(undefined,{weekday:'long',month:'long',day:'numeric'}).format(new Date());
+function defaults() {
+  return { profile: 'Student', settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, scaleCustomized: false, gradeScale: defaultScale() }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [] };
+}
+
+function sameScale(left, right) {
+  return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, index) => String(item.letter).toUpperCase() === right[index].letter && Number(item.min) === right[index].min && Number(item.gpa) === right[index].gpa);
+}
+
+function load() {
+  const base = defaults();
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return base;
+    const merged = { ...base, ...saved, settings: { ...base.settings, ...(saved.settings || {}) } };
+    for (const key of COLLECTIONS) if (!Array.isArray(merged[key])) merged[key] = [];
+    const max = Number(merged.settings.maxGpa);
+    merged.settings.maxGpa = Number.isFinite(max) && max > 0 && max <= 20 ? max : 4;
+    merged.settings.availableHours = Number(merged.settings.availableHours) > 0 ? Number(merged.settings.availableHours) : 2;
+    if (!Array.isArray(merged.settings.gradeScale) || !merged.settings.gradeScale.length) {
+      merged.settings.gradeScale = defaultScale(merged.settings.maxGpa);
+      merged.settings.scaleCustomized = false;
+    } else if (typeof merged.settings.scaleCustomized !== 'boolean') {
+      // Older saves have no customization flag. Recognize the old built-in 4.0 scale;
+      // keep any scale that differs from that built-in as a student customization.
+      const legacyDefault = defaultScale(4);
+      merged.settings.scaleCustomized = !sameScale(merged.settings.gradeScale, legacyDefault);
+      if (!merged.settings.scaleCustomized) merged.settings.gradeScale = defaultScale(merged.settings.maxGpa);
+    } else if (!merged.settings.scaleCustomized) {
+      merged.settings.gradeScale = defaultScale(merged.settings.maxGpa);
+    }
+    return merged;
+  } catch {
+    return base;
+  }
+}
+
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(data));
+    render();
+    return true;
+  } catch {
+    msg('UniTrack could not save in this browser. Check available storage space or browser privacy settings.');
+    return false;
+  }
+}
+
+function esc(value = '') {
+  return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+}
+
+function msg(message) {
+  toast.textContent = message;
+  toast.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('visible'), 3200);
+}
+
+function validRoute(route) { return Object.hasOwn(views, route) ? route : null; }
+function today() {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function dateLabel(date) { return date ? new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'No date'; }
+function daysUntil(date) { return Math.ceil((new Date(`${date}T00:00:00`) - new Date(`${today()}T00:00:00`)) / 86400000); }
+function validDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(String(value)) && !Number.isNaN(new Date(`${value}T12:00:00`).getTime()) && new Date(`${value}T12:00:00`).toISOString().slice(0, 10) === value; }
+function courseName(id) { return data.courses.find((course) => course.id === id)?.name || 'Unassigned'; }
+function courseProgress(courseId) { return UniTrackMath.courseProgress(data.assessments, courseId); }
+function gradeFor(score) { return UniTrackMath.gradeForPercentage(score, data.settings.gradeScale, data.settings.maxGpa); }
+function selectCourses(selected = '', required = false) {
+  return `<option value="">${required ? 'Choose a course' : 'No course selected'}</option>${data.courses.map((course) => `<option value="${esc(course.id)}" ${course.id === selected ? 'selected' : ''}>${esc(course.name)}</option>`).join('')}`;
+}
+function button(label, action, kind = 'secondary', extra = '') { return `<button type="button" class="button button-${kind}" data-action="${action}" ${extra}>${label}</button>`; }
+function stat(label, value, caption, route = '') {
+  const inner = `<div class="stat-top"><span>${label}</span></div><div class="stat-value">${value}</div><div class="stat-foot"><span class="neutral-dot"></span>${caption}</div>`;
+  return route ? `<a class="stat-card stat-link" href="#${route}">${inner}</a>` : `<article class="stat-card">${inner}</article>`;
+}
+function empty(title, description, kind = '') {
+  const control = kind ? `<button type="button" class="empty-icon empty-add" data-action="add" data-kind="${kind}" aria-label="Add ${kind}">＋</button>` : '<span class="empty-icon">＋</span>';
+  return `<div class="empty-state compact">${control}<strong>${title}</strong><span>${description}</span></div>`;
+}
+function card(title, subtitle, body, action = '') { return `<article class="panel"><div class="panel-heading"><div><h2>${title}</h2><p>${subtitle}</p></div>${action}</div>${body}</article>`; }
+function pageHeader(title, subtitle, add = '') { return `<section class="welcome-row"><div><div class="eyebrow">UNITRACK WORKSPACE</div><h1>${title}<span class="title-period">.</span></h1><p class="welcome-subtitle">${subtitle}</p></div>${add}</section>`; }
+function addButton(label, kind = '') { return button(`<span class="plus">+</span> ${label}`, 'add', 'primary', kind ? `data-kind="${kind}"` : ''); }
+function progressBar(value) { return `<div class="data-progress"><span style="width:${Math.max(0, Math.min(100, Number(value) || 0))}%"></span></div>`; }
+function gpaSummary() { return UniTrackMath.calculateGpa(data.courses, data.assessments, data.settings.gradeScale, data.settings.maxGpa); }
+
+function onboarding() {
+  const hasData = COLLECTIONS.some((key) => data[key].length);
+  if (hasData) return '';
+  return card('Welcome to UniTrack', 'A simple place to organize courses, deadlines, grades, and study time.', `<ol class="setup-steps"><li><strong>1. Add your first course</strong><span>Start with a course name and its credit hours.</span>${button('Add a course', 'add', 'primary', 'data-kind="course"')}</li><li><strong>2. Add assignments and exams</strong><span>Give each item a due date so your dashboard and study plan can help.</span><a class="text-link" href="#assignments">Open assignments ↗</a></li><li><strong>3. Track your grades and classes</strong><span>Record marks, assessment weights, and your weekly timetable.</span><a class="text-link" href="#grades">Open grade calculator ↗</a></li></ol>`, '<a class="text-link" href="#settings">Set university details ↗</a>');
+}
+
+function dashboard() {
+  const pending = data.assignments.filter((item) => !item.done);
+  const completed = data.assignments.filter((item) => item.done);
+  const examsSoon = data.exams.filter((item) => item.date && item.date >= today()).sort((a, b) => a.date.localeCompare(b.date));
+  const deadlines = pending.filter((item) => item.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 4);
+  const plans = makePlan().slice(0, 3);
+  const pct = data.assignments.length ? Math.round(completed.length / data.assignments.length * 100) : 0;
+  const gpaData = gpaSummary();
+  const day = DAYS[(new Date().getDay() + 6) % 7];
+  const classes = data.classes.filter((item) => item.day === day).sort((a, b) => String(a.start).localeCompare(String(b.start)));
+  const greeting = new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening';
+  return `${pageHeader(`Good ${greeting}`, 'Your academic workspace, all in one place.', button('<span class="plus">+</span> Quick add', 'quick-add', 'primary'))}${onboarding()}<section class="stats-grid">${stat('Total assignments', data.assignments.length, 'Across all your courses', 'assignments')}${stat('Pending', pending.length, 'Keep your next deadline in sight', 'assignments')}${stat('Completed', completed.length, 'Your completed work', 'assignments')}${stat('Upcoming exams', examsSoon.length, 'Exams on your calendar', 'exams')}</section><section class="dashboard-grid">${card('Today’s classes', 'Your timetable for today', classes.length ? classes.map((item) => `<div class="data-row"><div><strong>${esc(item.start)} · ${esc(item.title)}</strong><small>${esc(courseName(item.courseId))} · ${esc(item.location || 'Location not set')}</small></div></div>`).join('') : empty('Your day is open', 'Add classes to your timetable to see them here.', 'class'), '<a class="text-link" href="#timetable">Timetable ↗</a>')}${card('Semester progress', 'Assignment completion', `<div class="progress-summary"><div class="progress-ring"><div class="ring-inner"><strong>${pct}<span>%</span></strong><small>completed</small></div></div><div class="progress-legend">${completed.length} complete · ${pending.length} remaining</div></div><div class="grade-placeholder"><span>${gpaData.value === null ? 'No GPA yet' : `${gpaData.estimated ? 'Estimated' : 'Final'} GPA ${gpaData.value.toFixed(2)} / ${Number(data.settings.maxGpa).toFixed(2)}`}</span><span>${gpaData.gradedCredits ? `${gpaData.gradedCredits} graded credits` : 'Enter a course grade to calculate GPA'}</span></div>`, '<a class="text-link" href="#overview">Overview ↗</a>')}${card('Smart study plan', 'Suggested focus for today', plans.length ? plans.map(planRow).join('') : empty('No study sessions suggested yet', 'Add an assignment or exam with a due date.', 'assignment'), '<a class="text-link" href="#planner">View plan ↗</a>')}${card('Upcoming deadlines', 'Your nearest assignments', deadlines.length ? deadlines.map((item) => `<div class="data-row"><div><strong>${esc(item.title)}</strong><small>${esc(courseName(item.courseId))} · ${dateLabel(item.due)}</small></div><span class="priority ${esc((item.priority || 'Medium').toLowerCase())}">${esc(item.priority || 'Medium')}</span></div>`).join('') : empty('No deadlines coming up', 'Add assignments and their due dates will appear here.', 'assignment'), '<a class="text-link" href="#assignments">Assignments ↗</a>')}${card('Upcoming exams', 'Next on your calendar', examsSoon.slice(0, 3).length ? examsSoon.slice(0, 3).map((item) => `<div class="data-row"><div><strong>${esc(item.title)}</strong><small>${esc(courseName(item.courseId))} · ${dateLabel(item.date)}</small></div><span class="days-badge">${daysUntil(item.date)}d</span></div>`).join('') : empty('No exams scheduled', 'Add an exam to see it on your dashboard.', 'exam'), '<a class="text-link" href="#exams">Exams ↗</a>')}${card('Quick access', 'Continue where you need to', `<div class="quick-links"><a class="button button-secondary" href="#gpa">GPA calculator</a><a class="button button-secondary" href="#grades">What-if grade</a><a class="button button-secondary" href="#planner">Study planner</a><a class="button button-secondary" href="#settings">Settings</a></div>`)}</section>`;
+}
+
+function assignmentMatches(item) {
+  const overdue = !item.done && item.due && item.due < today();
+  const filterMatch = assignmentFilter === 'all' || (assignmentFilter === 'pending' && !item.done && !overdue) || (assignmentFilter === 'completed' && item.done) || (assignmentFilter === 'overdue' && overdue);
+  return filterMatch && `${item.title} ${courseName(item.courseId)} ${item.description || ''}`.toLowerCase().includes(assignmentSearch.toLowerCase());
+}
+
+function assignments() {
+  const rows = data.assignments.filter(assignmentMatches).sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'));
+  return `${pageHeader('Assignments', 'Keep track of coursework, priorities, and due dates.', addButton('Add assignment', 'assignment'))}<div class="assignment-tools"><label>Search<input id="assignment-search" type="search" value="${esc(assignmentSearch)}" placeholder="Search assignments"></label><label>Status<select id="assignment-filter"><option value="all" ${assignmentFilter === 'all' ? 'selected' : ''}>All assignments</option><option value="pending" ${assignmentFilter === 'pending' ? 'selected' : ''}>Pending</option><option value="completed" ${assignmentFilter === 'completed' ? 'selected' : ''}>Completed</option><option value="overdue" ${assignmentFilter === 'overdue' ? 'selected' : ''}>Overdue</option></select></label></div>${card('Assignments', 'Sorted by due date', rows.length ? rows.map((item) => `<div class="data-row"><div><strong>${esc(item.title)}${!item.done && item.due && item.due < today() ? ' <span class="overdue-tag">Overdue</span>' : ''}</strong><small>${esc(courseName(item.courseId))} · ${dateLabel(item.due)} · ${esc(item.priority || 'Medium')} priority${item.description ? ` · ${esc(item.description)}` : ''}</small></div><div class="row-actions"><button data-action="toggle-assignment" data-id="${esc(item.id)}">${item.done ? 'Undo' : 'Complete'}</button><button data-action="edit" data-kind="assignments" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="assignments" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No matching assignments', 'Try a different filter or add an assignment.', 'assignment'))}`;
+}
+
+function gradePage() {
+  const courseOptions = data.courses.map((course) => `<option value="${esc(course.id)}">${esc(course.name)}</option>`).join('');
+  return `${pageHeader('Grade calculator', 'Track assessment weights and explore what-if outcomes.', button('Add assessment', 'add', 'primary', 'data-kind="assessment"'))}${data.courses.length ? `<section class="form-panel"><form id="whatif-form" class="inline-form"><label>Course<select name="courseId" required>${courseOptions}</select></label><label>Target final grade (%)<input name="target" type="number" min="0" max="100" step="any" value="90" required></label><label>Hypothetical average on remaining work (%)<input name="hypothetical" type="number" min="0" max="100" step="any" placeholder="Optional"></label><button class="button button-primary">Calculate</button></form><div id="whatif-result" class="result-box" aria-live="polite">Choose a course with assessment marks to calculate what you need.</div></section>` : card('Start with a course', 'Add a course before entering assessments or using what-if calculations.', empty('No courses yet', 'Create your first course to continue.', 'course'))}${card('Assessments', 'Marks are weighted using each assessment’s share of its course', data.assessments.length ? data.assessments.map((item) => `<div class="data-row"><div><strong>${esc(item.title)} · ${esc(courseName(item.courseId))}</strong><small>${item.score}/${item.max} marks · ${item.weight}% course weight</small></div><div class="row-actions"><button data-action="edit" data-kind="assessments" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="assessments" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No assessments yet', 'Add an assessment to track a course grade.', data.courses.length ? 'assessment' : 'course'))}`;
+}
+
+function timetable() {
+  const rows = data.classes.slice().sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.start).localeCompare(String(b.start)));
+  return `${pageHeader('Timetable', 'Your weekly class schedule.', addButton('Add class', 'class'))}${card('Weekly classes', 'Classes are ordered by weekday and start time', rows.length ? rows.map((item) => `<div class="data-row"><div><strong>${esc(item.day)} · ${esc(item.title)}</strong><small>${esc(item.start)}–${esc(item.end)} · ${esc(courseName(item.courseId))} · ${esc(item.location || 'Location not set')}</small></div><div class="row-actions"><button data-action="edit" data-kind="classes" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="classes" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No classes scheduled', 'Add classes to see your weekly timetable.', 'class'))}`;
+}
+
+function navRows(items, kind) {
+  if (!items.length) return empty('Nothing here yet', `Add ${kind} to keep everything organized.`, kind === 'exams' ? 'exam' : 'assignment');
+  return items.slice().sort((a, b) => String(a.date || a.due || '').localeCompare(String(b.date || b.due || ''))).map((item) => `<div class="data-row"><div><strong>${esc(item.title || item.name)}</strong><small>${esc(courseName(item.courseId))}${item.due || item.date ? ` · ${dateLabel(item.due || item.date)}` : ''}${item.description ? ` · ${esc(item.description)}` : ''}${item.date ? ` · ${daysUntil(item.date) < 0 ? `${Math.abs(daysUntil(item.date))} days ago` : `${daysUntil(item.date)} days away`}` : ''}</small></div><div class="row-actions">${kind === 'assignments' ? `<button data-action="toggle-assignment" data-id="${esc(item.id)}">${item.done ? 'Undo' : 'Complete'}</button>` : ''}<button data-action="edit" data-kind="${kind}" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="${kind}" data-id="${esc(item.id)}">Delete</button></div></div>`).join('');
+}
+
+function exams() { return `${pageHeader('Exams', 'See what is coming and prepare early.', addButton('Add exam', 'exam'))}${card('Exam calendar', 'Upcoming and past exams', navRows(data.exams, 'exams'))}`; }
+
+function gpaCourseRow(course, gradeData) {
+  const current = gradeData.courses.find((item) => item.course.id === course.id);
+  const percent = current?.percentage;
+  const grade = percent === null || percent === undefined ? null : gradeFor(percent);
+  const mode = course.gradeMode === 'final' ? 'final' : 'assessments';
+  const details = grade ? `${percent.toFixed(2)}% · ${grade.letter} · ${grade.points.toFixed(2)} / ${Number(data.settings.maxGpa).toFixed(2)} GPA` : 'No grade entered yet';
+  const completion = current?.completion || 0;
+  return `<div class="gpa-course"><div class="gpa-course-main"><div><strong>${esc(course.name)}</strong><small>${Number(course.credits) || 0} credits · ${details}</small></div><span class="priority ${completion >= 100 ? 'low' : 'medium'}">${mode === 'final' ? 'Final grade' : completion >= 100 ? 'Complete' : `${completion.toFixed(0)}% graded`}</span></div>${mode === 'final' ? `<form class="final-grade-form" data-course-id="${esc(course.id)}"><label>Final course grade (%)<input name="finalGrade" type="number" min="0" max="100" step="any" value="${course.finalGrade ?? ''}" placeholder="0–100"></label><button class="button button-primary">Save grade</button></form>` : `<div class="gpa-course-actions"><span>${completion < 100 && grade ? `Current assessment average; ${Math.max(0, 100 - completion).toFixed(0)}% weight remains.` : grade ? 'All course weight has a mark.' : 'Track individual assessment marks and weights.'}</span><button class="row-action-button" data-action="add" data-kind="assessment" data-course-id="${esc(course.id)}">Add assessment</button></div>`}${progressBar(completion)}<div class="row-actions gpa-row-actions"><button data-action="toggle-grade-mode" data-id="${esc(course.id)}">Use ${mode === 'final' ? 'assessment tracking' : 'final grade'}</button><button data-action="edit" data-kind="courses" data-id="${esc(course.id)}">Edit course</button><button data-action="delete" data-kind="courses" data-id="${esc(course.id)}">Delete</button></div></div>`;
+}
+
+function gpa() {
+  const result = gpaSummary();
+  const title = result.value === null ? '—' : result.value.toFixed(2);
+  const status = result.value === null ? 'Enter a grade to calculate GPA' : `${result.estimated ? 'Estimated current GPA' : 'Final GPA'} · ${Number(data.settings.maxGpa).toFixed(2)} point scale`;
+  return `${pageHeader('GPA calculator', 'Add courses, enter a final grade or track assessments, and see your credit-weighted GPA.', addButton('Add course', 'course'))}<section class="stats-grid">${stat('Total courses', data.courses.length, 'Configured courses')}${stat('Graded credits', result.gradedCredits.toLocaleString(), 'Only valid graded credits count')}${stat(result.estimated ? 'Estimated GPA' : 'Current GPA', title, status)}${stat('Maximum scale', Number(data.settings.maxGpa).toFixed(2), 'Configured in university settings')}</section>${card('Your courses', 'Each course is counted once. Choose a final grade or assessment tracking.', data.courses.length ? `<div class="gpa-course-list">${data.courses.map((course) => gpaCourseRow(course, result)).join('')}</div>` : empty('No courses yet', 'Add your first course to get started.', 'course'))}${card('How GPA works', 'Transparent, credit-weighted calculation', `<p class="helper-text">GPA = total of (course GPA points × course credits) ÷ total graded course credits. Ungraded courses and courses with zero or invalid credits are not included. Assessment grades show an estimate until the full course weight is entered; missing work may change the final result.</p><a class="text-link" href="#settings">Review your grade scale ↗</a>`)}`;
+}
+
+function settings() {
+  const setting = data.settings;
+  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">UniTrack stores your data in this browser’s LocalStorage. It does not sync to your GitHub repository. Export a JSON backup before replacing data with an import.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" hidden></label></div>`)}`;
+}
+
+function scaleRow(grade, index) {
+  return `<div class="scale-row" data-scale-row><label>Letter<input data-scale="letter" value="${esc(grade.letter)}" maxlength="8" required></label><label>Minimum %<input data-scale="min" type="number" min="0" max="100" step="any" value="${grade.min}" required></label><label>GPA points<input data-scale="gpa" type="number" min="0" max="20" step="0.1" value="${grade.gpa}" required></label><button type="button" class="row-action-button" data-action="scale-remove" aria-label="Remove grade boundary ${index + 1}">Remove</button></div>`;
+}
+
+function weekSessions() {
+  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  return days.map((day, index) => {
+    const date = new Date();
+    date.setDate(date.getDate() - ((date.getDay() + 6) % 7) + index);
+    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    return { day, count: data.sessions.filter((session) => session.done && session.date === iso).length };
+  });
+}
+function isThisWeek(iso) {
+  if (!validDate(iso)) return false;
+  const date = new Date(`${iso}T12:00:00`), now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - ((now.getDay() + 6) % 7));
+  const end = new Date(start); end.setDate(end.getDate() + 7);
+  return date >= start && date < end;
+}
+
+function overview() {
+  const total = data.assignments.length, done = data.assignments.filter((item) => item.done).length;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const examsSoon = data.exams.filter((item) => item.date && item.date >= today()).sort((a, b) => a.date.localeCompare(b.date));
+  const deadlines = data.assignments.filter((item) => !item.done && item.due && item.due >= today()).sort((a, b) => a.due.localeCompare(b.due));
+  const workload = data.assignments.filter((item) => !item.done).length + examsSoon.length;
+  const week = weekSessions();
+  const completedSessions = data.sessions.filter((session) => session.done && isThisWeek(session.date)).length;
+  const grades = gpaSummary();
+  const dates = [...deadlines.map((item) => ({ title: item.title, date: item.due, type: 'Assignment' })), ...examsSoon.map((item) => ({ title: item.title, date: item.date, type: 'Exam' }))].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6);
+  return `${pageHeader('Semester overview', `${esc(data.settings.semester || 'Your semester')} · ${esc(data.settings.university || 'Configure your university in Settings')}`)}<section class="stats-grid">${stat('Academic progress', `${pct}%`, `${done} of ${total} assignments completed`)}${stat('Current GPA', grades.value === null ? '—' : grades.value.toFixed(2), grades.estimated ? 'Estimate · incomplete assessments' : 'Based on graded credits')}${stat('Upcoming exams', examsSoon.length, 'Scheduled future exams')}${stat('Remaining workload', workload, 'Pending assignments and exams')}</section><section class="overview-grid">${card('Course grades', 'Calculated from final grades or assessment marks', data.courses.length ? data.courses.map((course) => { const item = grades.courses.find((row) => row.course.id === course.id); return `<div class="course-progress"><div class="data-row"><div><strong>${esc(course.name)}</strong><small>${item?.percentage == null ? 'No grade entered' : `${item.percentage.toFixed(1)}% · ${item.letter || '—'} · ${Number(course.credits) || 0} credits · ${item.completion.toFixed(0)}% graded`}</small></div><strong>${item?.percentage == null ? '—' : `${item.percentage.toFixed(0)}%`}</strong></div>${progressBar(item?.completion || 0)}</div>`; }).join('') : empty('No courses configured', 'Add courses and grades to see summaries.', 'course'))}${card('Weekly productivity', 'Completed study sessions recorded this week', `<div class="week-bars">${week.map((item) => `<div title="${item.count} completed sessions"><span style="height:${item.count ? Math.min(100, item.count * 22) : 3}%"></span><small>${item.day}</small></div>`).join('')}</div><p class="helper-text">${completedSessions} completed sessions this week. Only saved and completed sessions are counted.</p>`)}${card('Completed assessments', 'Completed assignment work', done ? data.assignments.filter((item) => item.done).map((item) => `<div class="data-row"><div><strong>${esc(item.title)}</strong><small>${esc(courseName(item.courseId))}${item.due ? ` · ${dateLabel(item.due)}` : ''}</small></div><span class="completion-mark">✓</span></div>`).join('') : empty('No completed assessments', 'Mark assignments complete to see them here.'))}${card('Upcoming dates', 'Assignments and exams', dates.length ? dates.map((item) => `<div class="data-row"><div><strong>${esc(item.title)}</strong><small>${item.type} · ${dateLabel(item.date)}</small></div><span class="days-badge">${daysUntil(item.date)}d</span></div>`).join('') : empty('No upcoming dates', 'Add assignment deadlines and exams to plan your semester.'))}</section>`;
+}
+
+function makePlan() {
+  const tasks = [
+    ...data.assignments.filter((item) => !item.done && item.due).map((item) => ({ ...item, due: item.due, exam: false })),
+    ...data.exams.filter((item) => item.date && item.date >= today()).map((item) => ({ ...item, due: item.date, priority: 'High', exam: true })),
+  ].sort((a, b) => {
+    const urgency = (item) => {
+      const days = daysUntil(item.due);
+      const priority = item.priority === 'High' ? 30 : item.priority === 'Low' ? 0 : 15;
+      return (days < 0 ? 1000 + Math.min(365, Math.abs(days)) : 300 - days * 10) + priority + (item.exam ? 20 : 0);
+    };
+    return urgency(b) - urgency(a);
+  });
+  let available = Number(data.settings.availableHours) || 2;
+  return tasks.map((task) => {
+    const hours = Math.min(available, Math.max(0.25, Number(task.studyHours) || (task.exam ? 1.5 : 1)));
+    available -= hours;
+    const delta = daysUntil(task.due);
+    const why = delta < 0 ? 'Overdue work prioritized' : delta <= 2 ? 'Due very soon' : task.exam ? 'Upcoming exam preparation' : task.priority === 'High' ? 'High priority deadline' : 'Earlier deadline prioritized';
+    return { task, hours, why, date: task.due };
+  }).filter((plan) => plan.hours > 0);
+}
+function planRow(plan) { return `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}h</strong><small>${esc(courseName(plan.task.courseId))} · ${dateLabel(plan.date)} · ${esc(plan.why)}</small></div></div>`; }
+
+function planner() {
+  const suggestions = makePlan();
+  return `${pageHeader('Smart study planner', 'A transparent daily plan based on your deadlines and available hours.', button('Refresh suggestions', 'refresh-plan'))}${card('Suggested sessions', 'Urgency uses deadline proximity, priority, and available hours. You can change any suggestion.', suggestions.length ? suggestions.map((plan) => `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} hours</strong><small>${esc(plan.why)} · ${dateLabel(plan.date)}</small></div><div class="row-actions"><button data-action="save-plan" data-id="${esc(plan.task.id)}" data-exam="${plan.task.exam}" data-hours="${plan.hours}" data-date="${esc(plan.date)}">Add to plan</button></div></div>`).join('') : empty('Nothing to schedule', 'Add an assignment or exam with a due date to receive a suggestion.', 'assignment'))}${card('Your study sessions', 'Complete, edit, or remove saved sessions.', data.sessions.length ? data.sessions.map((session) => `<div class="data-row"><div><strong>${esc(session.title)} · ${Number(session.hours) || 0}h ${session.done ? '<span class="completion-mark">✓ Done</span>' : ''}</strong><small>${dateLabel(session.date)} · ${esc(session.reason || 'Personal session')}</small></div><div class="row-actions"><button data-action="session-toggle" data-id="${esc(session.id)}">${session.done ? 'Undo' : 'Complete'}</button><button data-action="session-edit" data-id="${esc(session.id)}">Edit</button><button data-action="session-delete" data-id="${esc(session.id)}">Delete</button></div></div>`).join('') : empty('No saved sessions', 'Add suggestions to create a personal study plan.'))}${card('Your available time', 'Daily study time is configurable in Settings', `<p class="helper-text">${Number(data.settings.availableHours) || 2} hours per day. Timetable classes are displayed on the dashboard; you can adjust available study hours independently in Settings.</p><a class="text-link" href="#settings">Adjust study availability ↗</a>`)}`;
+}
+
+function render() {
+  currentPage = validRoute(location.hash.slice(1)) || currentPage || 'dashboard';
+  document.querySelectorAll('.nav-item[data-page]').forEach((anchor) => {
+    const active = anchor.dataset.page === currentPage;
+    anchor.classList.toggle('active', active);
+    if (active) anchor.setAttribute('aria-current', 'page'); else anchor.removeAttribute('aria-current');
+  });
+  const count = document.querySelector('.nav-count');
+  if (count) count.textContent = data.assignments.filter((item) => !item.done).length;
+  document.querySelector('.breadcrumb strong').textContent = labels[currentPage] || 'Dashboard';
+  content.innerHTML = views[currentPage]();
+  bindPage();
+}
+
+function bindPage() {
+  document.querySelector('#settings-form')?.addEventListener('submit', saveSettings);
+  document.querySelector('#whatif-form')?.addEventListener('submit', calculateWhatIf);
+  document.querySelectorAll('.final-grade-form').forEach((form) => form.addEventListener('submit', saveFinalGrade));
+}
+
+function formFields(kind, record = {}) {
+  const courses = selectCourses(record.courseId || '', kind === 'assessment');
+  const fields = {
+    course: `<label>Course name<input name="name" value="${esc(record.name || '')}" required maxlength="100" autocomplete="off"></label><label>Credit hours<input name="credits" type="number" min="0.1" max="100" step="0.1" value="${record.credits ?? 3}" required></label>`,
+    assignment: `<label>Title<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Description<input name="description" value="${esc(record.description || '')}" maxlength="240"></label><label>Due date<input name="due" type="date" value="${esc(record.due || '')}"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="${record.studyHours ?? 2}" required></label><label>Priority<select name="priority">${['Low', 'Medium', 'High'].map((value) => `<option ${record.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`,
+    assessment: `<label>Assessment name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId" required>${courses}</select></label><div class="two-fields"><label>Score<input name="score" type="number" min="0" step="any" value="${record.score ?? ''}" required></label><label>Maximum marks<input name="max" type="number" min="0.01" step="any" value="${record.max ?? 100}" required></label></div><label>Course weight (%)<input name="weight" type="number" min="0.01" max="100" step="any" value="${record.weight ?? ''}" required></label>`,
+    class: `<label>Class name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Day<select name="day">${DAYS.map((day) => `<option ${record.day === day ? 'selected' : ''}>${day}</option>`).join('')}</select></label><div class="two-fields"><label>Start<input type="time" name="start" value="${esc(record.start || '')}" required></label><label>End<input type="time" name="end" value="${esc(record.end || '')}" required></label></div><label>Room or location<input name="location" value="${esc(record.location || '')}" maxlength="100"></label>`,
+    exam: `<label>Exam name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Exam date<input name="date" type="date" value="${esc(record.date || '')}" required></label>`,
+  };
+  return fields[kind];
+}
+
+function openRecordDialog(kind, record = null) {
+  if (!['course', 'assignment', 'assessment', 'class', 'exam'].includes(kind)) return;
+  if (['assignment', 'assessment', 'class', 'exam'].includes(kind) && !data.courses.length) {
+    msg('Add a course first. Opening the course form now.');
+    openRecordDialog('course');
+    return;
+  }
+  const editing = Boolean(record?.id);
+  const title = `${editing ? 'Edit' : 'Add'} ${kind === 'class' ? 'class' : kind}`;
+  const modal = document.createElement('dialog');
+  modal.className = 'app-dialog';
+  modal.innerHTML = `<form class="record-form"><div class="panel-heading"><div><h2>${title}</h2><p>Complete the required fields before saving.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields">${formFields(kind, record || {})}</div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button type="submit" class="button button-primary">${editing ? 'Save changes' : 'Save'}</button></div></form>`;
+  document.body.append(modal);
+  modal.showModal();
+  modal.querySelectorAll('[data-cancel]').forEach((control) => control.addEventListener('click', () => modal.close()));
+  modal.querySelector('.record-form').addEventListener('submit', (event) => {
+    event.preventDefault();
+    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const error = validateRecord(kind, values, record?.id);
+    if (error) { msg(error); return; }
+    const saved = { ...(record || {}), ...values };
+    if (kind === 'course') { saved.name = values.name.trim(); saved.credits = Number(values.credits); if (!editing) { saved.gradeMode = 'assessments'; saved.finalGrade = null; } }
+    if (kind === 'assessment') { saved.score = Number(values.score); saved.max = Number(values.max); saved.weight = Number(values.weight); }
+    if (kind === 'assignment') saved.studyHours = Number(values.studyHours);
+    if (!editing) { saved.id = crypto.randomUUID(); data[{ course: 'courses', assignment: 'assignments', assessment: 'assessments', class: 'classes', exam: 'exams' }[kind]].push(saved); }
+    else Object.assign(record, saved);
+    modal.close();
+    save();
+    msg(`${kind[0].toUpperCase()}${kind.slice(1)} ${editing ? 'updated' : 'saved'}.`);
+  });
+  modal.addEventListener('close', () => modal.remove());
+}
+
+function validateRecord(kind, values, exceptId = '') {
+  if (kind !== 'course' && !values.title?.trim()) return 'Please enter a title.';
+  if (kind === 'course' && !values.name?.trim()) return 'Please enter a course name.';
+  if (kind === 'course' && (!Number.isFinite(Number(values.credits)) || Number(values.credits) <= 0 || Number(values.credits) > 100)) return 'Course credits must be greater than 0 and at most 100.';
+  if (kind === 'assignment' && (!Number.isFinite(Number(values.studyHours)) || Number(values.studyHours) <= 0)) return 'Study hours must be greater than 0.';
+  if (kind === 'exam' && !validDate(values.date)) return 'Choose a valid exam date.';
+  if (kind === 'assignment' && values.due && !validDate(values.due)) return 'Choose a valid assignment date.';
+  if (kind === 'class' && (!values.start || !values.end || values.start >= values.end)) return 'Class end time must be after its start time.';
+  if (kind === 'assessment') {
+    const score = Number(values.score), max = Number(values.max), weight = Number(values.weight);
+    if (![score, max, weight].every(Number.isFinite) || max <= 0 || score < 0 || score > max || weight <= 0) return 'Enter a valid score, maximum marks, and positive course weight.';
+    const total = data.assessments.filter((item) => item.courseId === values.courseId && item.id !== exceptId).reduce((sum, item) => sum + Number(item.weight || 0), 0);
+    if (total + weight > 100 + 1e-8) return `This course already has ${total.toFixed(2)}% assessment weight. The total cannot exceed 100%.`;
+  }
+  if (values.courseId && !data.courses.some((course) => course.id === values.courseId)) return 'Choose a course that still exists.';
+  return '';
+}
+
+function addRecord(kind, courseId = '') {
+  openRecordDialog(kind, kind === 'assessment' && courseId ? { courseId } : null);
+}
+
+function editRecord(collection, id) {
+  const record = data[collection]?.find((item) => item.id === id);
+  const kind = { courses: 'course', assignments: 'assignment', assessments: 'assessment', classes: 'class', exams: 'exam' }[collection];
+  if (!record || !kind) return;
+  openRecordDialog(kind, record);
+}
+
+function deleteRecord(collection, id) {
+  if (!COLLECTIONS.includes(collection)) return;
+  const record = data[collection].find((item) => item.id === id);
+  if (!record) return;
+  if (collection === 'courses') {
+    const linked = ['assessments', 'assignments', 'exams', 'classes', 'sessions'].reduce((sum, key) => sum + data[key].filter((item) => item.courseId === id).length, 0);
+    if (!confirm(`Delete ${record.name} and its ${linked} linked records? This can’t be undone.`)) return;
+    for (const key of ['assessments', 'assignments', 'exams', 'classes', 'sessions']) data[key] = data[key].filter((item) => item.courseId !== id);
+  } else if (!confirm('Delete this item? This can’t be undone.')) return;
+  data[collection] = data[collection].filter((item) => item.id !== id);
+  save(); msg('Item deleted.');
+}
+
+function saveFinalGrade(event) {
+  event.preventDefault();
+  const form = event.currentTarget, course = data.courses.find((item) => item.id === form.dataset.courseId);
+  const value = form.elements.finalGrade.value;
+  if (!course) return;
+  if (value === '') { course.finalGrade = null; save(); msg('Final grade cleared.'); return; }
+  const grade = Number(value);
+  if (!Number.isFinite(grade) || grade < 0 || grade > 100) { msg('Final course grade must be between 0% and 100%.'); return; }
+  course.finalGrade = grade;
+  course.gradeMode = 'final';
+  save(); msg('Final course grade saved.');
+}
+
+function saveSettings(event) {
+  event.preventDefault();
+  const form = event.currentTarget, fields = new FormData(form);
+  const previous = data.settings;
+  const maxGpa = Number(fields.get('maxGpa'));
+  const availableHours = Number(fields.get('availableHours'));
+  const start = fields.get('start'), end = fields.get('end');
+  if (!Number.isFinite(maxGpa) || maxGpa < 1 || maxGpa > 20) return msg('Maximum GPA must be between 1 and 20.');
+  if (!Number.isFinite(availableHours) || availableHours < 0.25 || availableHours > 16) return msg('Daily study time must be between 0.25 and 16 hours.');
+  if ((start && !validDate(start)) || (end && !validDate(end)) || (start && end && start > end)) return msg('Enter valid semester dates and make sure the end date follows the start date.');
+  const scale = [...form.querySelectorAll('[data-scale-row]')].map((row) => ({ letter: row.querySelector('[data-scale="letter"]').value, min: Number(row.querySelector('[data-scale="min"]').value), gpa: Number(row.querySelector('[data-scale="gpa"]').value) }));
+  const untouchedBuiltIn = !previous.scaleCustomized && sameScale(scale, previous.gradeScale);
+  const finalScale = untouchedBuiltIn && maxGpa !== Number(previous.maxGpa) ? defaultScale(maxGpa) : scale;
+  const scaleValidation = UniTrackMath.validateGradeScale(finalScale, maxGpa);
+  if (!scaleValidation.valid) return msg(scaleValidation.reason);
+  data.settings = { ...previous, university: String(fields.get('university') || '').trim(), semester: String(fields.get('semester') || '').trim(), start, end, maxGpa, availableHours, gradeScale: scaleValidation.scale, scaleCustomized: !sameScale(scaleValidation.scale, defaultScale(maxGpa)) };
+  save(); msg('University and grading settings saved.');
+}
+
+function calculateWhatIf(event) {
+  event.preventDefault();
+  const form = event.currentTarget, courseId = form.elements.courseId.value;
+  const target = Number(form.elements.target.value);
+  const rawHypothetical = form.elements.hypothetical.value;
+  const hypothetical = rawHypothetical === '' ? null : Number(rawHypothetical);
+  const result = document.querySelector('#whatif-result');
+  if (!Number.isFinite(target) || target < 0 || target > 100 || (hypothetical !== null && (!Number.isFinite(hypothetical) || hypothetical < 0 || hypothetical > 100))) return msg('Enter percentages from 0 to 100.');
+  const course = data.courses.find((item) => item.id === courseId);
+  if (!course) return msg('Select a course.');
+  const progress = courseProgress(courseId);
+  if (progress.error) { result.textContent = 'The assessment data for this course is invalid. Correct the marks and weights before calculating.'; return; }
+  if (!progress.total || progress.grade === null) { result.textContent = 'Add at least one valid weighted assessment for this course first.'; return; }
+  const calculation = UniTrackMath.requiredAverage(progress.grade, progress.total, target);
+  if (calculation.error === 'no-remaining-weight') { result.innerHTML = `All course weight is assessed. Current course grade: <strong>${progress.grade.toFixed(2)}%</strong>.`; return; }
+  if (calculation.error) { msg('Check the assessment weights and target grade.'); return; }
+  const projected = hypothetical === null ? null : UniTrackMath.projectedGrade(progress.grade, progress.total, hypothetical);
+  const need = calculation.alreadyAchieved ? 'You have already reached this target based on your completed work.' : `You need an average of <strong>${calculation.required.toFixed(2)}%</strong> across the remaining ${calculation.remaining.toFixed(2)}% of the course.`;
+  const unreachable = calculation.possible ? '' : `<br><strong>Target is mathematically unreachable.</strong> Even with 100% on all remaining work, your maximum final grade is ${calculation.maximum.toFixed(2)}%.`;
+  const estimate = progress.remaining > 0 ? `<br>Current assessment average is based on ${progress.total.toFixed(2)}% of course weight; ${progress.remaining.toFixed(2)}% remains.` : '';
+  result.innerHTML = `${need}${unreachable}${projected === null ? '' : `<br>With a hypothetical ${hypothetical}% average, your projected final grade is <strong>${projected.toFixed(2)}%</strong>.`}${estimate}`;
+}
+
+function exportData() {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob), anchor = document.createElement('a');
+  anchor.href = url; anchor.download = 'unitrack-data.json'; anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function validateImport(imported) {
+  if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Choose a UniTrack JSON object.');
+  if (imported.settings !== undefined && (!imported.settings || typeof imported.settings !== 'object' || Array.isArray(imported.settings))) throw new Error('The settings section is invalid.');
+  const merged = { ...defaults(), ...imported, settings: { ...defaults().settings, ...(imported.settings || {}) } };
+  for (const key of COLLECTIONS) {
+    if (merged[key] === undefined) merged[key] = [];
+    if (!Array.isArray(merged[key])) throw new Error(`${key} must be a list.`);
+    const ids = new Set();
+    for (const record of merged[key]) {
+      if (!record || typeof record !== 'object' || Array.isArray(record) || typeof record.id !== 'string' || !record.id || ids.has(record.id)) throw new Error(`${key} contains an invalid or duplicate record.`);
+      ids.add(record.id);
+    }
+  }
+  const maxGpa = Number(merged.settings.maxGpa);
+  const scale = UniTrackMath.validateGradeScale(merged.settings.gradeScale, maxGpa);
+  if (!Number.isFinite(maxGpa) || !scale.valid) throw new Error(scale.reason || 'The maximum GPA is invalid.');
+  const available = Number(merged.settings.availableHours);
+  if (!Number.isFinite(available) || available < 0.25 || available > 16) throw new Error('Daily available study time must be between 0.25 and 16 hours.');
+  if ((merged.settings.start && !validDate(merged.settings.start)) || (merged.settings.end && !validDate(merged.settings.end)) || (merged.settings.start && merged.settings.end && merged.settings.start > merged.settings.end)) throw new Error('Semester dates are invalid.');
+  for (const course of merged.courses) if (course.credits !== undefined && (!Number.isFinite(Number(course.credits)) || Number(course.credits) < 0)) throw new Error('A course has invalid credits.');
+  const courseIds = new Set(merged.courses.map((course) => course.id));
+  const assessmentWeights = new Map();
+  for (const item of merged.assessments) {
+    const score = Number(item.score), max = Number(item.max), weight = Number(item.weight);
+    if (!courseIds.has(item.courseId) || ![score, max, weight].every(Number.isFinite) || max <= 0 || score < 0 || score > max || weight <= 0 || weight > 100) throw new Error('An assessment has invalid course, marks, or weight.');
+    const total = (assessmentWeights.get(item.courseId) || 0) + weight;
+    if (total > 100 + 1e-8) throw new Error('Assessment weights for one course cannot exceed 100%.');
+    assessmentWeights.set(item.courseId, total);
+  }
+  for (const key of ['assignments', 'classes', 'exams', 'sessions']) for (const item of merged[key]) if (item.courseId && !courseIds.has(item.courseId)) throw new Error(`A ${key.slice(0, -1)} refers to a course that is not in this file.`);
+  for (const item of merged.assignments) if ((item.due && !validDate(item.due)) || (item.studyHours !== undefined && (!Number.isFinite(Number(item.studyHours)) || Number(item.studyHours) <= 0))) throw new Error('An assignment has an invalid due date or study duration.');
+  for (const item of merged.exams) if (!validDate(item.date)) throw new Error('An exam has an invalid date.');
+  for (const item of merged.sessions) if (!validDate(item.date) || !Number.isFinite(Number(item.hours)) || Number(item.hours) <= 0 || Number(item.hours) > 16) throw new Error('A study session has an invalid date or duration.');
+  for (const course of merged.courses) if (course.finalGrade != null && course.finalGrade !== '' && (!Number.isFinite(Number(course.finalGrade)) || Number(course.finalGrade) < 0 || Number(course.finalGrade) > 100)) throw new Error('A course has an invalid final grade.');
+  return merged;
+}
+
+async function importFile(file) {
+  try {
+    const imported = JSON.parse(await file.text());
+    const validated = validateImport(imported);
+    if (!confirm('Import this file and replace the UniTrack data saved in this browser? Export a backup first if you need to keep it.')) return;
+    data = validated;
+    save();
+    msg('Data imported successfully.');
+  } catch (error) {
+    msg(error.message || 'Import failed. Choose a valid UniTrack JSON export.');
+  }
+}
+
+function toggleMenu(force) {
+  const menu = document.querySelector('#menu-toggle'), sidebar = document.querySelector('#sidebar'), overlay = document.querySelector('#mobile-overlay');
+  const open = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', open); overlay.classList.toggle('visible', open);
+  menu.setAttribute('aria-expanded', String(open));
+  menu.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+}
+
+document.addEventListener('click', (event) => {
+  const anchor = event.target.closest('a[href^="#"]');
+  if (anchor) {
+    const route = validRoute(anchor.getAttribute('href').slice(1));
+    if (route) { currentPage = route; toggleMenu(false); render(); }
+  }
+  const control = event.target.closest('[data-action]');
+  if (!control) return;
+  const { action, kind, id } = control.dataset;
+  if (action === 'add') addRecord(kind || ({ assignments: 'assignment', timetable: 'class', exams: 'exam', gpa: 'course' }[currentPage] || 'assignment'), control.dataset.courseId || '');
+  else if (action === 'quick-add') addRecord(data.courses.length ? 'assignment' : 'course');
+  else if (action === 'add-assessment') addRecord('assessment');
+  else if (action === 'edit') editRecord(kind, id);
+  else if (action === 'delete') deleteRecord(kind, id);
+  else if (action === 'toggle-assignment') { const item = data.assignments.find((record) => record.id === id); if (item) { item.done = !item.done; save(); } }
+  else if (action === 'toggle-grade-mode') {
+    const course = data.courses.find((record) => record.id === id);
+    if (course) { course.gradeMode = course.gradeMode === 'final' ? 'assessments' : 'final'; save(); msg(course.gradeMode === 'final' ? 'Final-grade entry selected. Your assessment records are preserved.' : 'Assessment tracking selected. Your final grade is preserved.'); }
+  } else if (action === 'save-plan') {
+    const source = control.dataset.exam === 'true' ? data.exams : data.assignments;
+    const item = source.find((record) => record.id === id);
+    if (item) { data.sessions.push({ id: crypto.randomUUID(), title: item.title, courseId: item.courseId, date: control.dataset.date, hours: Number(control.dataset.hours), reason: control.dataset.exam === 'true' ? 'Exam preparation' : 'Deadline-focused study', done: false, sourceId: item.id }); save(); msg('Study session added.'); }
+  } else if (action === 'session-toggle') { const session = data.sessions.find((record) => record.id === id); if (session) { session.done = !session.done; save(); } }
+  else if (action === 'session-delete') { if (confirm('Delete this study session?')) { data.sessions = data.sessions.filter((session) => session.id !== id); save(); } }
+  else if (action === 'session-edit') editSession(id);
+  else if (action === 'settings-save') document.querySelector('#settings-form')?.requestSubmit();
+  else if (action === 'scale-add') addScaleRow();
+  else if (action === 'scale-remove') { control.closest('[data-scale-row]')?.remove(); }
+  else if (action === 'scale-reset') { const max = Number(document.querySelector('[name="maxGpa"]').value); document.querySelector('.scale-list').innerHTML = defaultScale(max).map(scaleRow).join(''); }
+  else if (action === 'export') exportData();
+  else if (action === 'refresh-plan') render();
+});
+
+function addScaleRow() {
+  const list = document.querySelector('.scale-list');
+  const row = document.createElement('div');
+  row.innerHTML = scaleRow({ letter: '', min: 0, gpa: 0 }, list.querySelectorAll('[data-scale-row]').length);
+  list.append(row.firstElementChild);
+}
+
+function editSession(id) {
+  const session = data.sessions.find((item) => item.id === id);
+  if (!session) return;
+  const modal = document.createElement('dialog'); modal.className = 'app-dialog';
+  modal.innerHTML = `<form class="session-form"><div class="panel-heading"><div><h2>Edit study session</h2><p>Update how long you will study and when.</p></div><button type="button" class="close-dialog" data-cancel>×</button></div><div class="dialog-fields"><label>Study hours<input name="hours" type="number" min="0.25" max="16" step="0.25" value="${Number(session.hours) || 1}" required></label><label>Session date<input name="date" type="date" value="${esc(session.date)}" required></label></div><div class="dialog-actions"><button class="button button-secondary" type="button" data-cancel>Cancel</button><button class="button button-primary">Save changes</button></div></form>`;
+  document.body.append(modal); modal.showModal();
+  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => modal.close()));
+  modal.querySelector('form').addEventListener('submit', (event) => { event.preventDefault(); const fields = new FormData(event.currentTarget), hours = Number(fields.get('hours')), date = fields.get('date'); if (!Number.isFinite(hours) || hours < 0.25 || hours > 16 || !validDate(date)) return msg('Enter 0.25–16 hours and a valid session date.'); session.hours = hours; session.date = date; modal.close(); save(); msg('Study session updated.'); });
+  modal.addEventListener('close', () => modal.remove());
+}
+
+document.addEventListener('change', (event) => {
+  if (event.target.id === 'assignment-filter') { assignmentFilter = event.target.value; render(); }
+  if (event.target.id === 'import-file' && event.target.files?.[0]) importFile(event.target.files[0]);
+});
+document.addEventListener('input', (event) => {
+  if (event.target.id !== 'assignment-search') return;
+  assignmentSearch = event.target.value;
+  const cursor = event.target.selectionStart;
+  render();
+  const field = document.querySelector('#assignment-search'); field.focus(); field.setSelectionRange(cursor, cursor);
+});
+window.addEventListener('hashchange', () => { currentPage = validRoute(location.hash.slice(1)) || 'dashboard'; toggleMenu(false); render(); });
+window.addEventListener('storage', (event) => { if (event.key === KEY) { data = load(); render(); msg('Updated from another UniTrack tab.'); } });
+document.querySelector('#menu-toggle').addEventListener('click', () => toggleMenu());
+document.querySelector('#mobile-overlay').addEventListener('click', () => toggleMenu(false));
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') toggleMenu(false); });
+document.querySelector('.icon-button')?.addEventListener('click', () => msg('You’re all caught up.'));
+document.querySelector('.profile-button')?.addEventListener('click', () => { location.hash = '#settings'; });
+document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 render();
-// Allow the first course to be created before any course-dependent records exist.
-document.addEventListener('click',e=>{const trigger=e.target.closest('[data-action="add"]');if(!trigger)return;e.preventDefault();e.stopImmediatePropagation();const kind=trigger.dataset.kind||({assignments:'assignment',timetable:'class',exams:'exam',gpa:'course'}[currentPage]||'assignment');add(kind)},true);
-document.addEventListener('click',e=>{const trigger=e.target.closest('[data-action="edit"]');if(trigger){e.preventDefault();e.stopImmediatePropagation();editRecord(trigger.dataset.kind,trigger.dataset.id)}},true);
-document.addEventListener('click',e=>{const trigger=e.target.closest('[data-action="delete"][data-kind="courses"]');if(!trigger)return;e.preventDefault();e.stopImmediatePropagation();const id=trigger.dataset.id,linked=data.assessments.filter(x=>x.courseId===id).length+data.assignments.filter(x=>x.courseId===id).length+data.exams.filter(x=>x.courseId===id).length;if(!confirm(`Delete this course and its ${linked} linked assignments, exams, and assessments?`))return;for(const key of ['assessments','assignments','exams','classes','sessions'])data[key]=data[key].filter(x=>x.courseId!==id);data.courses=data.courses.filter(x=>x.id!==id);save();msg('Course and linked records deleted.')},true);
-document.addEventListener('change',e=>{if(e.target.id==='assignment-filter'){assignmentFilter=e.target.value;render()}if(e.target.id==='import-file'){const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);const keys=['courses','assignments','assessments','classes','exams','sessions'];if(!imported||keys.some(k=>imported[k]!==undefined&&(!Array.isArray(imported[k])||imported[k].some(v=>!v||typeof v!=='object'||Array.isArray(v))))){throw Error('Invalid data shape')}const merged={...structuredClone(defaults),...imported,settings:{...structuredClone(defaults.settings),...(imported.settings||{})}};if(!Array.isArray(merged.settings.gradeScale)||merged.settings.gradeScale.some(g=>!g||typeof g.letter!=='string'||!Number.isFinite(Number(g.min))||!Number.isFinite(Number(g.gpa))))throw Error('Invalid grading scale');if(!confirm('Import this file and replace the UniTrack data currently saved in this browser? Export a backup first if you need to keep it.'))return;data=merged;save();msg('Data imported successfully.')}catch(error){msg('Import failed: choose a valid UniTrack JSON export.')}};reader.readAsText(file)}});
-document.addEventListener('change',e=>{if(e.target.id==='import-file'){e.stopImmediatePropagation();const file=e.target.files?.[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{const imported=JSON.parse(reader.result);const keys=['courses','assignments','assessments','classes','exams','sessions'];if(!imported||keys.some(k=>imported[k]!==undefined&&(!Array.isArray(imported[k])||imported[k].some(v=>!v||typeof v!=='object'||Array.isArray(v)||typeof v.id!=='string'||!/^[\w-]{1,80}$/.test(v.id)))))throw Error();const merged={...structuredClone(defaults),...imported,settings:{...structuredClone(defaults.settings),...(imported.settings||{})}};if(!Array.isArray(merged.settings.gradeScale)||merged.settings.gradeScale.some(g=>!g||typeof g.letter!=='string'||!Number.isFinite(Number(g.min))||!Number.isFinite(Number(g.gpa))))throw Error();if(!confirm('Import this file and replace saved UniTrack data? Export a backup first if you need to keep it.'))return;data=merged;save();msg('Data imported successfully.')}catch{msg('Import failed: choose a valid UniTrack JSON export.')}};reader.readAsText(file)}},true);
-document.addEventListener('input',e=>{if(e.target.id==='assignment-search'){assignmentSearch=e.target.value;const cursor=e.target.selectionStart;render();const input=document.querySelector('#assignment-search');input.focus();input.setSelectionRange(cursor,cursor)}});
-document.addEventListener('click',e=>{const anchor=e.target.closest('a[href^="#"]');if(!anchor||anchor.classList.contains('nav-item'))return;const route=anchor.getAttribute('href').slice(1);if(views[route]){e.preventDefault();currentPage=route;render()}});
