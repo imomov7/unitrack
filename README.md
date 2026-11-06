@@ -9,9 +9,14 @@ ACADELY is a browser-only student productivity workspace built with HTML, CSS, a
 - What-if grade predictions with required-average and impossible-target explanations.
 - Semester overview based on entered data, with course grades, deadlines, completion, workload, and weekly completed study sessions.
 - A transparent study planner that ranks pending work by priority and days to deadline. Students can save suggestions and edit, complete, or delete sessions.
+- Monthly, weekly, and daily academic calendar views with automatic assignment, exam, timetable, and semester-date entries, plus editable personal events.
+- A local student profile with initials and optional student details, kept separate from the editable creator contact on the About page.
+- An About ACADELY page covering the product, mission, vision, student problems, creator contact, and browser-edition version.
 - A beginner-friendly first-course setup flow, a useful dashboard, and mobile navigation with an accessible expanded state.
 - GPA entry by either a final course grade or individual weighted assessments. Partial course results and GPAs are identified as estimates.
 - Safe JSON import validation and JSON export.
+
+Student, creator, and calendar data use the existing `unitrack-data-v1` LocalStorage record. Calendar assignments, exams, classes, and semester dates are derived from their existing records, so they are not duplicated. Student and creator profiles are local-only and are not verified or synced between visitors.
 
 ## Run locally
 
