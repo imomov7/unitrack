@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 21193)
-Total output lines: 763
-
 // ACADELY browser data layer, page rendering, and event handlers.
 // Keep KEY stable so existing student data remains available after upgrades.
 const KEY = 'unitrack-data-v1';
@@ -130,7 +127,10 @@ function msg(message) {
   toastTimer = setTimeout(() => toast.classList.remove('visible'), 3200);
 }
 
-function validRoute(route) { return Object.hasOwn(views, route) ? route : null; }
+// Object.hasOwn and Array.at are missing in older mobile Safari versions. Keep
+// startup independent of these newer helpers so one unsupported API cannot
+// prevent every control on the page from being wired up.
+function validRoute(route) { return Object.prototype.hasOwnProperty.call(views, route) ? route : null; }
 function today() {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -231,7 +231,38 @@ function settings() {
 
 function initials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
-  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : parts[0]?.slice(0, 2) || 'S').toUpperCase();
+  return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2) || 'S').toUpperCase();
+}
+
+function makeId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  if (globalThis.crypto?.getRandomValues) {
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    return [...bytes].map((value) => value.toString(16).padStart(2, '0')).join('');
+  }
+  return `acadely-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function openDialog(dialog) {
+  if (typeof dialog.showModal === 'function') dialog.showModal();
+  else {
+    dialog.classList.add('dialog-fallback');
+    dialog.setAttribute('open', '');
+    dialog.setAttribute('aria-modal', 'true');
+  }
+}
+
+function closeDialog(dialog) {
+  if (!dialog) return;
+  if (typeof dialog.close === 'function' && dialog.open && !dialog.classList.contains('dialog-fallback')) dialog.close();
+  else dialog.remove();
+}
+
+function submitForm(form) {
+  if (!form) return;
+  if (typeof form.requestSubmit === 'function') form.requestSubmit();
+  else form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
 }
 
 function syncProfileDisplay() {
@@ -313,7 +344,51 @@ function planRow(plan) { return `<div class="data-row"><div><strong>${esc(plan.t
 
 function planner() {
   const suggestions = makePlan();
-  return `${pageHeader('Smart study planner', 'A transparent daily plan based on your deadlines and available hours.', button('Refresh suggestions', 'refresh-plan'))}${card('Suggested sessions', 'Urgency uses deadline proximity, priority, and available hours. You can change any suggestion.', suggestions.length ? suggestions.map((plan) => `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} hours</strong><small>${esc(plan.why)} · ${dateLabel(plan.date)}</small></div><div class="row-actions"><button data-action="save-plan" data-id="${esc(plan.task.id)}" data-exam="${plan.task.exam}" data-hours="${plan.hours}" data-date="${esc(plan.date)}">Add to plan</button></div></div>`).join('') : empty('Nothing to schedule', 'Add an assignment or exam with a due date to receive a suggestion.', 'assignment'))}${card('Your study sessions', 'Complete, edit, or remove saved sessions.', data.sessions.length ? data.sessions.map((session) => `<div …1193 tokens truncated… const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
+  return `${pageHeader('Smart study planner', 'A transparent daily plan based on your deadlines and available hours.', button('Refresh suggestions', 'refresh-plan'))}${card('Suggested sessions', 'Urgency uses deadline proximity, priority, and available hours. You can change any suggestion.', suggestions.length ? suggestions.map((plan) => `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} hours</strong><small>${esc(plan.why)} · ${dateLabel(plan.date)}</small></div><div class="row-actions"><button data-action="save-plan" data-id="${esc(plan.task.id)}" data-exam="${plan.task.exam}" data-hours="${plan.hours}" data-date="${esc(plan.date)}">Add to plan</button></div></div>`).join('') : empty('Nothing to schedule', 'Add an assignment or exam with a due date to receive a suggestion.', 'assignment'))}${card('Your study sessions', 'Complete, edit, or remove saved sessions.', data.sessions.length ? data.sessions.map((session) => `<div class="data-row"><div><strong>${esc(session.title)} · ${Number(session.hours) || 0}h ${session.done ? '<span class="completion-mark">✓ Done</span>' : ''}</strong><small>${dateLabel(session.date)} · ${esc(session.reason || 'Personal session')}</small></div><div class="row-actions"><button data-action="session-toggle" data-id="${esc(session.id)}">${session.done ? 'Undo' : 'Complete'}</button><button data-action="session-edit" data-id="${esc(session.id)}">Edit</button><button data-action="session-delete" data-id="${esc(session.id)}">Delete</button></div></div>`).join('') : empty('No saved sessions', 'Add suggestions to create a personal study plan.'))}${card('Your available time', 'Daily study time is configurable in Settings', `<p class="helper-text">${Number(data.settings.availableHours) || 2} hours per day. Timetable classes are displayed on the dashboard; you can adjust available study hours independently in Settings.</p><a class="text-link" href="#settings">Adjust study availability ↗</a>`)}`;
+}
+
+function isoDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function dateFromIso(value) { return new Date(`${value}T12:00:00`); }
+function mondayOf(date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return start;
+}
+function calendarEvents(from, to) {
+  const start = isoDate(from), end = isoDate(to), events = [];
+  const within = (date) => validDate(date) && date >= start && date <= end;
+  for (const item of data.assignments) if (within(item.due)) events.push({ id: item.id, kind: 'assignment', category: 'assignment', title: item.title, description: item.description || '', date: item.due, courseId: item.courseId, done: Boolean(item.done) });
+  for (const item of data.exams) if (within(item.date)) events.push({ id: item.id, kind: 'exam', category: 'exam', title: item.title, description: '', date: item.date, courseId: item.courseId });
+  for (const item of data.events) if (within(item.date)) events.push({ id: item.id, kind: 'custom', category: item.category || 'personal', title: item.title, description: item.description || '', date: item.date, start: item.start || '', end: item.end || '' });
+  for (const item of data.classes) {
+    if (!DAYS.includes(item.day)) continue;
+    const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 12);
+    while (isoDate(cursor) <= end) {
+      if (DAYS[(cursor.getDay() + 6) % 7] === item.day) events.push({ id: `${item.id}-${isoDate(cursor)}`, sourceId: item.id, kind: 'class', category: 'class', title: item.title, description: item.location || '', date: isoDate(cursor), start: item.start || '', end: item.end || '', courseId: item.courseId });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  if (within(data.settings.start)) events.push({ id: 'semester-start', kind: 'deadline', category: 'deadline', title: 'Semester begins', description: data.settings.semester || '', date: data.settings.start });
+  if (within(data.settings.end)) events.push({ id: 'semester-end', kind: 'deadline', category: 'deadline', title: 'Semester ends', description: data.settings.semester || '', date: data.settings.end });
+  return events.sort((a, b) => a.date.localeCompare(b.date) || String(a.start || '').localeCompare(String(b.start || '')) || a.title.localeCompare(b.title));
+}
+function categoryLabel(category) {
+  return ({ assignment: 'Assignment', exam: 'Exam', class: 'Class', deadline: 'Academic deadline', personal: 'Personal', study: 'Study', other: 'Other' })[category] || 'Personal';
+}
+function calendarEventButton(item, compact = false) {
+  const time = item.start ? `${item.start} ` : '';
+  return `<button type="button" class="calendar-event event-${esc(item.category)}${item.done ? ' is-complete' : ''}" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}" title="${esc(categoryLabel(item.category) + ': ' + item.title)}"><span class="event-dot"></span>${compact ? '' : `<span class="event-time">${esc(time)}</span>`}<span class="event-title">${esc(item.title)}</span></button>`;
+}
+function monthGrid() {
+  const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1, 12);
+  const start = mondayOf(first), end = new Date(start); end.setDate(end.getDate() + 41);
+  const events = calendarEvents(start, end), selected = calendarSelected;
+  const headings = DAYS.map((day) => `<div class="calendar-weekday">${day.slice(0, 3)}</div>`).join('');
+  const cells = Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start); day.setDate(start.getDate() + index);
+    const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
     return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.slice(0, 3).map((item) => calendarEventButton(item, true)).join('')}${items.length > 3 ? `<span class="calendar-more">+${items.length - 3} more</span>` : ''}</div></div>`;
   }).join('');
   return `<div class="calendar-month-grid">${headings}${cells}</div>`;
@@ -355,16 +430,16 @@ function showCalendarEventForm(record = null) {
   const modal = document.createElement('dialog'); modal.className = 'app-dialog';
   const current = record || { date: calendarSelected || today(), category: 'personal' };
   modal.innerHTML = `<form class="calendar-form"><div class="panel-heading"><div><h2>${editing ? 'Edit event' : 'Add event'}</h2><p>Personal calendar events are saved in this browser.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields"><label>Event title<input name="title" value="${esc(current.title || '')}" maxlength="120" required></label><label>Description<input name="description" value="${esc(current.description || '')}" maxlength="500" placeholder="Optional details"></label><label>Category<select name="category">${['personal','study','deadline','other'].map((category) => `<option value="${category}" ${current.category === category ? 'selected' : ''}>${categoryLabel(category)}</option>`).join('')}</select></label><label>Date<input name="date" type="date" value="${esc(current.date || today())}" required></label><div class="two-fields"><label>Start time<input name="start" type="time" value="${esc(current.start || '')}"></label><label>End time<input name="end" type="time" value="${esc(current.end || '')}"></label></div></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">${editing ? 'Save changes' : 'Save event'}</button></div></form>`;
-  document.body.append(modal); modal.showModal();
-  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => modal.close()));
+  document.body.append(modal); openDialog(modal);
+  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => closeDialog(modal)));
   modal.querySelector('form').addEventListener('submit', (event) => {
     event.preventDefault(); const fields = new FormData(event.currentTarget), date = String(fields.get('date') || ''), start = String(fields.get('start') || ''), end = String(fields.get('end') || '');
     const title = String(fields.get('title') || '').trim();
     if (!title || title.length > 120 || !validDate(date)) return msg('Enter an event title and a valid date.');
     if (start && end && start >= end) return msg('The event end time must be after its start time.');
     const saved = { ...(record || {}), title, description: String(fields.get('description') || '').trim(), category: String(fields.get('category') || 'personal'), date, start, end };
-    if (!editing) { saved.id = crypto.randomUUID(); data.events.push(saved); } else Object.assign(record, saved);
-    calendarSelected = date; calendarCursor = dateFromIso(date); modal.close(); save(); msg(editing ? 'Event updated.' : 'Event saved.');
+    if (!editing) { saved.id = makeId(); data.events.push(saved); } else Object.assign(record, saved);
+    calendarSelected = date; calendarCursor = dateFromIso(date); closeDialog(modal); save(); msg(editing ? 'Event updated.' : 'Event saved.');
   });
   modal.addEventListener('close', () => modal.remove());
 }
@@ -383,8 +458,8 @@ function showCalendarEventDetails(kind, id, date) {
   const link = ({ assignment: '#assignments', exam: '#exams', class: '#timetable' })[kind];
   const modal = document.createElement('dialog'); modal.className = 'app-dialog calendar-details';
   modal.innerHTML = `<div class="panel-heading"><div><span class="calendar-detail-category event-${esc(category)}">${esc(categoryLabel(category))}</span><h2>${esc(item.title)}</h2><p>${date ? dateFromIso(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}${time ? ` · ${esc(time)}` : ''}${item.courseId ? ` · ${esc(courseName(item.courseId))}` : ''}</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div>${description ? `<p class="helper-text">${esc(description)}</p>` : ''}${item.done ? '<p class="completion-mark">Completed assignment</p>' : ''}<div class="dialog-actions">${kind === 'custom' ? `<button type="button" class="button button-secondary" data-action="calendar-edit" data-id="${esc(id)}">Edit event</button><button type="button" class="row-action-button" data-action="calendar-delete" data-id="${esc(id)}">Delete</button>` : link ? `<a class="button button-secondary" href="${link}" data-cancel>Open ${categoryLabel(kind).toLowerCase()} list</a>` : ''}<button type="button" class="button button-primary" data-cancel>Done</button></div>`;
-  document.body.append(modal); modal.showModal();
-  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => modal.close()));
+  document.body.append(modal); openDialog(modal);
+  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => closeDialog(modal)));
   modal.addEventListener('close', () => modal.remove());
 }
 
@@ -441,8 +516,8 @@ function openRecordDialog(kind, record = null) {
   modal.className = 'app-dialog';
   modal.innerHTML = `<form class="record-form"><div class="panel-heading"><div><h2>${title}</h2><p>Complete the required fields before saving.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields">${formFields(kind, record || {})}</div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button type="submit" class="button button-primary">${editing ? 'Save changes' : 'Save'}</button></div></form>`;
   document.body.append(modal);
-  modal.showModal();
-  modal.querySelectorAll('[data-cancel]').forEach((control) => control.addEventListener('click', () => modal.close()));
+  openDialog(modal);
+  modal.querySelectorAll('[data-cancel]').forEach((control) => control.addEventListener('click', () => closeDialog(modal)));
   modal.querySelector('.record-form').addEventListener('submit', (event) => {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
@@ -452,9 +527,9 @@ function openRecordDialog(kind, record = null) {
     if (kind === 'course') { saved.name = values.name.trim(); saved.credits = Number(values.credits); if (!editing) { saved.gradeMode = 'assessments'; saved.finalGrade = null; } }
     if (kind === 'assessment') { saved.score = Number(values.score); saved.max = Number(values.max); saved.weight = Number(values.weight); }
     if (kind === 'assignment') saved.studyHours = Number(values.studyHours);
-    if (!editing) { saved.id = crypto.randomUUID(); data[{ course: 'courses', assignment: 'assignments', assessment: 'assessments', class: 'classes', exam: 'exams' }[kind]].push(saved); }
+    if (!editing) { saved.id = makeId(); data[{ course: 'courses', assignment: 'assignments', assessment: 'assessments', class: 'classes', exam: 'exams' }[kind]].push(saved); }
     else Object.assign(record, saved);
-    modal.close();
+    closeDialog(modal);
     save();
     msg(`${kind[0].toUpperCase()}${kind.slice(1)} ${editing ? 'updated' : 'saved'}.`);
   });
@@ -654,9 +729,9 @@ document.addEventListener('click', (event) => {
   }
   else if (action === 'calendar-add') showCalendarEventForm();
   else if (action === 'calendar-event') { event.stopPropagation(); showCalendarEventDetails(kind, id, control.dataset.date); }
-  else if (action === 'calendar-edit') { control.closest('dialog')?.close(); showCalendarEventForm(data.events.find((item) => item.id === id)); }
+  else if (action === 'calendar-edit') { closeDialog(control.closest('dialog')); showCalendarEventForm(data.events.find((item) => item.id === id)); }
   else if (action === 'calendar-delete') {
-    if (confirm('Delete this personal calendar event?')) { control.closest('dialog')?.close(); data.events = data.events.filter((item) => item.id !== id); save(); msg('Calendar event deleted.'); }
+    if (confirm('Delete this personal calendar event?')) { closeDialog(control.closest('dialog')); data.events = data.events.filter((item) => item.id !== id); save(); msg('Calendar event deleted.'); }
   }
   if (action === 'add') addRecord(kind || ({ assignments: 'assignment', timetable: 'class', exams: 'exam', gpa: 'course' }[currentPage] || 'assignment'), control.dataset.courseId || '');
   else if (action === 'quick-add') addRecord(data.courses.length ? 'assignment' : 'course');
@@ -670,11 +745,11 @@ document.addEventListener('click', (event) => {
   } else if (action === 'save-plan') {
     const source = control.dataset.exam === 'true' ? data.exams : data.assignments;
     const item = source.find((record) => record.id === id);
-    if (item) { data.sessions.push({ id: crypto.randomUUID(), title: item.title, courseId: item.courseId, date: control.dataset.date, hours: Number(control.dataset.hours), reason: control.dataset.exam === 'true' ? 'Exam preparation' : 'Deadline-focused study', done: false, sourceId: item.id }); save(); msg('Study session added.'); }
+    if (item) { data.sessions.push({ id: makeId(), title: item.title, courseId: item.courseId, date: control.dataset.date, hours: Number(control.dataset.hours), reason: control.dataset.exam === 'true' ? 'Exam preparation' : 'Deadline-focused study', done: false, sourceId: item.id }); save(); msg('Study session added.'); }
   } else if (action === 'session-toggle') { const session = data.sessions.find((record) => record.id === id); if (session) { session.done = !session.done; save(); } }
   else if (action === 'session-delete') { if (confirm('Delete this study session?')) { data.sessions = data.sessions.filter((session) => session.id !== id); save(); } }
   else if (action === 'session-edit') editSession(id);
-  else if (action === 'settings-save') document.querySelector('#settings-form')?.requestSubmit();
+  else if (action === 'settings-save') submitForm(document.querySelector('#settings-form'));
   else if (action === 'scale-add') addScaleRow();
   else if (action === 'scale-remove') { control.closest('[data-scale-row]')?.remove(); }
   else if (action === 'scale-reset') { const max = Number(document.querySelector('[name="maxGpa"]').value); document.querySelector('.scale-list').innerHTML = defaultScale(max).map(scaleRow).join(''); }
@@ -694,9 +769,9 @@ function editSession(id) {
   if (!session) return;
   const modal = document.createElement('dialog'); modal.className = 'app-dialog';
   modal.innerHTML = `<form class="session-form"><div class="panel-heading"><div><h2>Edit study session</h2><p>Update how long you will study and when.</p></div><button type="button" class="close-dialog" data-cancel>×</button></div><div class="dialog-fields"><label>Study hours<input name="hours" type="number" min="0.25" max="16" step="0.25" value="${Number(session.hours) || 1}" required></label><label>Session date<input name="date" type="date" value="${esc(session.date)}" required></label></div><div class="dialog-actions"><button class="button button-secondary" type="button" data-cancel>Cancel</button><button class="button button-primary">Save changes</button></div></form>`;
-  document.body.append(modal); modal.showModal();
-  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => modal.close()));
-  modal.querySelector('form').addEventListener('submit', (event) => { event.preventDefault(); const fields = new FormData(event.currentTarget), hours = Number(fields.get('hours')), date = fields.get('date'); if (!Number.isFinite(hours) || hours < 0.25 || hours > 16 || !validDate(date)) return msg('Enter 0.25–16 hours and a valid session date.'); session.hours = hours; session.date = date; modal.close(); save(); msg('Study session updated.'); });
+  document.body.append(modal); openDialog(modal);
+  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => closeDialog(modal)));
+  modal.querySelector('form').addEventListener('submit', (event) => { event.preventDefault(); const fields = new FormData(event.currentTarget), hours = Number(fields.get('hours')), date = fields.get('date'); if (!Number.isFinite(hours) || hours < 0.25 || hours > 16 || !validDate(date)) return msg('Enter 0.25–16 hours and a valid session date.'); session.hours = hours; session.date = date; closeDialog(modal); save(); msg('Study session updated.'); });
   modal.addEventListener('close', () => modal.remove());
 }
 
