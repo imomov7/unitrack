@@ -1,15 +1,19 @@
 // ACADELY browser data layer, page rendering, and event handlers.
 // Keep KEY stable so existing student data remains available after upgrades.
 const KEY = 'unitrack-data-v1';
-const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions'];
+const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, settings, overview, planner };
-const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grade calculator', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner' };
+const APP_VERSION = '1.1.0';
+const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about };
+const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grade calculator', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY' };
 const content = document.querySelector('.page-content');
 const toast = document.querySelector('#toast');
 let toastTimer;
 let assignmentFilter = 'all';
 let assignmentSearch = '';
+let calendarMode = 'month';
+let calendarCursor = new Date();
+let calendarSelected = today();
 let data = load();
 let currentPage = validRoute(location.hash.slice(1)) || 'dashboard';
 
@@ -65,7 +69,7 @@ function defaultScale(maxGpa = 4) {
 }
 
 function defaults() {
-  return { profile: 'Student', settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, scaleCustomized: false, gradeScale: defaultScale() }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [] };
+  return { profile: 'Student', studentProfile: { fullName: '', studentId: '', university: '', major: '', academicYear: '', semester: '', email: '' }, creatorProfile: { name: '', email: '' }, settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, scaleCustomized: false, gradeScale: defaultScale() }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [], events: [] };
 }
 
 function sameScale(left, right) {
@@ -77,7 +81,7 @@ function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
     if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return base;
-    const merged = { ...base, ...saved, settings: { ...base.settings, ...(saved.settings || {}) } };
+    const merged = { ...base, ...saved, settings: { ...base.settings, ...(saved.settings || {}) }, studentProfile: { ...base.studentProfile, ...(saved.studentProfile || {}) }, creatorProfile: { ...base.creatorProfile, ...(saved.creatorProfile || {}) } };
     for (const key of COLLECTIONS) if (!Array.isArray(merged[key])) merged[key] = [];
     const max = Number(merged.settings.maxGpa);
     merged.settings.maxGpa = Number.isFinite(max) && max > 0 && max <= 20 ? max : 4;
@@ -218,7 +222,33 @@ function gpa() {
 
 function settings() {
   const setting = data.settings;
-  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">ACADELY stores your data in this browser’s LocalStorage. It does not sync to your GitHub repository. Export a JSON backup before replacing data with an import.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" hidden></label></div>`)}`;
+  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">ACADELY stores your data in this browser’s LocalStorage. It does not sync to your GitHub repository. Export a JSON backup before replacing data with an import.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" hidden></label></div>`)}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
+}
+
+function initials(name) {
+  const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
+  return (parts.length > 1 ? `${parts[0][0]}${parts.at(-1)[0]}` : parts[0]?.slice(0, 2) || 'S').toUpperCase();
+}
+
+function syncProfileDisplay() {
+  const name = String(data.studentProfile.fullName || '').trim() || 'Student';
+  document.querySelector('.profile-copy strong').textContent = name;
+  document.querySelector('.profile-copy small').textContent = 'Local profile · not verified';
+  document.querySelector('.avatar').textContent = initials(name);
+  document.querySelector('.top-avatar').textContent = initials(name);
+  document.querySelector('.top-avatar').title = name;
+  document.querySelector('.top-avatar').setAttribute('aria-label', `${name}, local profile`);
+}
+
+function profile() {
+  const item = data.studentProfile;
+  return `${pageHeader('Student profile', 'Your private academic details, saved on this browser.')}${card('Personal details', 'You can update these fields whenever you need. A local profile is not a verified account.', `<div class="profile-preview"><span class="avatar profile-avatar">${esc(initials(item.fullName))}</span><div><strong>${esc(item.fullName || 'Your initials')}</strong><small>Initials are used as your profile image.</small></div></div><form id="student-profile-form" class="settings-form"><label>Full name<input name="fullName" value="${esc(item.fullName)}" maxlength="120" autocomplete="name" placeholder="Your name"></label><label>Student ID / University UID <span class="helper-inline">Optional</span><input name="studentId" value="${esc(item.studentId)}" maxlength="80" autocomplete="off" placeholder="Optional"></label><label>University name<input name="university" value="${esc(item.university || data.settings.university)}" maxlength="120" placeholder="University"></label><label>Major / degree program<input name="major" value="${esc(item.major)}" maxlength="120" placeholder="e.g. Computer Science"></label><div class="two-fields"><label>Academic year<input name="academicYear" value="${esc(item.academicYear)}" maxlength="40" placeholder="e.g. Second year"></label><label>Current semester<input name="semester" value="${esc(item.semester || data.settings.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label></div><label>Email address <span class="helper-inline">Optional</span><input name="email" type="email" value="${esc(item.email)}" maxlength="254" autocomplete="email" placeholder="you@example.edu"></label><div><button class="button button-primary">Save profile</button></div></form><p class="helper-text">Your profile is stored locally in this browser. Acadely does not verify your identity, request university passwords, or sync profile details to a cloud account.</p>`)}`;
+}
+
+function about() {
+  const creator = data.creatorProfile;
+  return `${pageHeader('About Acadely', 'Your academic journey, made clearer.')}`+
+    `<section class="about-grid">${card('What Acadely is', 'One clear workspace for the moving parts of university life.', '<p>Acadely brings courses, assignments, exams, grades, timetables, and study plans together so students can see what needs attention.</p>')}${card('Why it was created', 'Less time searching. More time making progress.', '<p>University work is often scattered across calendars, course pages, and personal notes. Acadely was created to make those responsibilities easier to organize in one place.</p>')}${card('Mission', 'Help students make steady, informed progress.', '<p>Make academic planning easier to understand, easier to maintain, and useful across different universities and grading systems.</p>')}${card('Vision', 'A calmer way to manage a semester.', '<p>Give every student a reliable overview of their work, time, and progress without adding more complexity to their day.</p>')}${card('The problems Acadely works to solve', 'Clear deadlines, connected tools, and useful context.', '<ul class="about-list"><li>Deadlines spread across different tools.</li><li>Unclear course progress and grade expectations.</li><li>Difficulty balancing study time with weekly classes.</li><li>Academic information that is hard to review at a glance.</li></ul>')}${card('Creator profile', 'Public creator information is separate from your private student profile.', `<form id="creator-profile-form" class="settings-form"><label>Creator name<input name="name" value="${esc(creator.name)}" maxlength="120" placeholder="Name shown on About Acadely"></label><label>Gmail contact<input name="email" type="email" value="${esc(creator.email)}" maxlength="254" placeholder="name@gmail.com"></label><div><button class="button button-primary">Save creator profile</button></div></form><p class="helper-text">This information is stored locally in this browser and is not verified or synced to other visitors.</p>${creator.email ? `<a class="text-link" href="mailto:${encodeURIComponent(creator.email)}">Contact ${esc(creator.name || 'the creator')} ↗</a>` : '<p class="helper-text">Add a creator name and Gmail above to show contact information here.</p>'}`)}</section><div class="version-note">ACADELY · Browser edition · Version ${APP_VERSION}</div>`;
 }
 
 function scaleRow(grade, index) {
@@ -283,6 +313,122 @@ function planner() {
   return `${pageHeader('Smart study planner', 'A transparent daily plan based on your deadlines and available hours.', button('Refresh suggestions', 'refresh-plan'))}${card('Suggested sessions', 'Urgency uses deadline proximity, priority, and available hours. You can change any suggestion.', suggestions.length ? suggestions.map((plan) => `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} hours</strong><small>${esc(plan.why)} · ${dateLabel(plan.date)}</small></div><div class="row-actions"><button data-action="save-plan" data-id="${esc(plan.task.id)}" data-exam="${plan.task.exam}" data-hours="${plan.hours}" data-date="${esc(plan.date)}">Add to plan</button></div></div>`).join('') : empty('Nothing to schedule', 'Add an assignment or exam with a due date to receive a suggestion.', 'assignment'))}${card('Your study sessions', 'Complete, edit, or remove saved sessions.', data.sessions.length ? data.sessions.map((session) => `<div class="data-row"><div><strong>${esc(session.title)} · ${Number(session.hours) || 0}h ${session.done ? '<span class="completion-mark">✓ Done</span>' : ''}</strong><small>${dateLabel(session.date)} · ${esc(session.reason || 'Personal session')}</small></div><div class="row-actions"><button data-action="session-toggle" data-id="${esc(session.id)}">${session.done ? 'Undo' : 'Complete'}</button><button data-action="session-edit" data-id="${esc(session.id)}">Edit</button><button data-action="session-delete" data-id="${esc(session.id)}">Delete</button></div></div>`).join('') : empty('No saved sessions', 'Add suggestions to create a personal study plan.'))}${card('Your available time', 'Daily study time is configurable in Settings', `<p class="helper-text">${Number(data.settings.availableHours) || 2} hours per day. Timetable classes are displayed on the dashboard; you can adjust available study hours independently in Settings.</p><a class="text-link" href="#settings">Adjust study availability ↗</a>`)}`;
 }
 
+function isoDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+function dateFromIso(value) { return new Date(`${value}T12:00:00`); }
+function mondayOf(date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+  return start;
+}
+function calendarEvents(from, to) {
+  const start = isoDate(from), end = isoDate(to), events = [];
+  const within = (date) => validDate(date) && date >= start && date <= end;
+  for (const item of data.assignments) if (within(item.due)) events.push({ id: item.id, kind: 'assignment', category: 'assignment', title: item.title, description: item.description || '', date: item.due, courseId: item.courseId, done: Boolean(item.done) });
+  for (const item of data.exams) if (within(item.date)) events.push({ id: item.id, kind: 'exam', category: 'exam', title: item.title, description: '', date: item.date, courseId: item.courseId });
+  for (const item of data.events) if (within(item.date)) events.push({ id: item.id, kind: 'custom', category: item.category || 'personal', title: item.title, description: item.description || '', date: item.date, start: item.start || '', end: item.end || '' });
+  for (const item of data.classes) {
+    if (!DAYS.includes(item.day)) continue;
+    const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 12);
+    while (isoDate(cursor) <= end) {
+      if (DAYS[(cursor.getDay() + 6) % 7] === item.day) events.push({ id: `${item.id}-${isoDate(cursor)}`, sourceId: item.id, kind: 'class', category: 'class', title: item.title, description: item.location || '', date: isoDate(cursor), start: item.start || '', end: item.end || '', courseId: item.courseId });
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  if (within(data.settings.start)) events.push({ id: 'semester-start', kind: 'deadline', category: 'deadline', title: 'Semester begins', description: data.settings.semester || '', date: data.settings.start });
+  if (within(data.settings.end)) events.push({ id: 'semester-end', kind: 'deadline', category: 'deadline', title: 'Semester ends', description: data.settings.semester || '', date: data.settings.end });
+  return events.sort((a, b) => a.date.localeCompare(b.date) || String(a.start || '').localeCompare(String(b.start || '')) || a.title.localeCompare(b.title));
+}
+function categoryLabel(category) {
+  return ({ assignment: 'Assignment', exam: 'Exam', class: 'Class', deadline: 'Academic deadline', personal: 'Personal', study: 'Study', other: 'Other' })[category] || 'Personal';
+}
+function calendarEventButton(item, compact = false) {
+  const time = item.start ? `${item.start} ` : '';
+  return `<button type="button" class="calendar-event event-${esc(item.category)}${item.done ? ' is-complete' : ''}" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}" title="${esc(categoryLabel(item.category) + ': ' + item.title)}"><span class="event-dot"></span>${compact ? '' : `<span class="event-time">${esc(time)}</span>`}<span class="event-title">${esc(item.title)}</span></button>`;
+}
+function monthGrid() {
+  const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1, 12);
+  const start = mondayOf(first), end = new Date(start); end.setDate(end.getDate() + 41);
+  const events = calendarEvents(start, end), selected = calendarSelected;
+  const headings = DAYS.map((day) => `<div class="calendar-weekday">${day.slice(0, 3)}</div>`).join('');
+  const cells = Array.from({ length: 42 }, (_, index) => {
+    const day = new Date(start); day.setDate(start.getDate() + index);
+    const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
+    return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.slice(0, 3).map((item) => calendarEventButton(item, true)).join('')}${items.length > 3 ? `<span class="calendar-more">+${items.length - 3} more</span>` : ''}</div></div>`;
+  }).join('');
+  return `<div class="calendar-month-grid">${headings}${cells}</div>`;
+}
+function weekGrid(start) {
+  const end = new Date(start); end.setDate(end.getDate() + 6);
+  const events = calendarEvents(start, end);
+  return `<div class="calendar-week-grid">${DAYS.map((day, index) => {
+    const date = new Date(start); date.setDate(date.getDate() + index); const iso = isoDate(date), items = events.filter((item) => item.date === iso);
+    return `<section class="calendar-week-day${iso === today() ? ' is-today' : ''}"><button class="calendar-week-date" type="button" data-action="calendar-select" data-date="${iso}"><span>${day.slice(0, 3)}</span><strong>${date.getDate()}</strong></button><div class="calendar-week-events">${items.length ? items.map((item) => calendarEventButton(item)).join('') : '<span class="calendar-no-events">No events</span>'}</div></section>`;
+  }).join('')}</div>`;
+}
+function calendarRange() {
+  if (calendarMode === 'month') return { from: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1, 12), to: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0, 12) };
+  if (calendarMode === 'week') { const from = mondayOf(calendarCursor), to = new Date(from); to.setDate(to.getDate() + 6); return { from, to }; }
+  return { from: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), calendarCursor.getDate(), 12), to: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), calendarCursor.getDate(), 12) };
+}
+function calendarTitle(from, to) {
+  if (calendarMode === 'month') return from.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  if (isoDate(from) === isoDate(to)) return from.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  const sameYear = from.getFullYear() === to.getFullYear();
+  return `${from.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${to.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${sameYear ? `, ${to.getFullYear()}` : `, ${from.getFullYear()} – ${to.getFullYear()}`}`;
+}
+function calendarAgenda(date) {
+  const events = calendarEvents(dateFromIso(date), dateFromIso(date));
+  return events.length ? events.map((item) => `<div class="calendar-agenda-row"><span class="calendar-category-dot event-${esc(item.category)}"></span><div><strong>${esc(item.title)}</strong><small>${esc(categoryLabel(item.category))}${item.start ? ` · ${esc(item.start)}${item.end ? `–${esc(item.end)}` : ''}` : ''}${item.courseId ? ` · ${esc(courseName(item.courseId))}` : ''}${item.description ? ` · ${esc(item.description)}` : ''}${item.done ? ' · Completed' : ''}</small></div><button type="button" class="row-action-button" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}">Details</button></div>`).join('') : `<div class="empty-state compact"><button type="button" class="empty-icon empty-add" data-action="calendar-add" aria-label="Add calendar event">＋</button><strong>Nothing scheduled</strong><span>Add a personal event or use assignments, exams, and the timetable to fill your calendar.</span></div>`;
+}
+function calendar() {
+  const { from, to } = calendarRange();
+  const selected = calendarSelected && validDate(calendarSelected) ? calendarSelected : today();
+  const view = calendarMode === 'month' ? monthGrid() : calendarMode === 'week' ? weekGrid(mondayOf(calendarCursor)) : `<div class="calendar-day-view">${calendarEvents(from, to).length ? calendarEvents(from, to).map((item) => `<div class="calendar-day-event">${calendarEventButton(item)}</div>`).join('') : `<div class="empty-state compact"><button type="button" class="empty-icon empty-add" data-action="calendar-add" aria-label="Add calendar event">＋</button><strong>A clear day</strong><span>There are no events scheduled for this date.</span></div>`}</div>`;
+  const toolbar = `<div class="calendar-toolbar"><div class="calendar-date-controls"><button type="button" class="calendar-arrow" data-action="calendar-shift" data-direction="-1" aria-label="Previous ${calendarMode}">‹</button><strong>${esc(calendarTitle(from, to))}</strong><button type="button" class="calendar-arrow" data-action="calendar-shift" data-direction="1" aria-label="Next ${calendarMode}">›</button><button type="button" class="button button-secondary calendar-today" data-action="calendar-today">Today</button></div><div class="calendar-toolbar-actions"><div class="calendar-view-switch" role="group" aria-label="Calendar view">${['month', 'week', 'day'].map((mode) => `<button type="button" data-action="calendar-view" data-view="${mode}" aria-pressed="${calendarMode === mode}" class="${calendarMode === mode ? 'active' : ''}">${mode[0].toUpperCase()}${mode.slice(1)}</button>`).join('')}</div>${button('＋ Add event', 'calendar-add', 'primary')}</div></div>`;
+  const legend = `<div class="calendar-legend">${[['assignment','Assignments'],['exam','Exams'],['class','Classes'],['personal','Personal events'],['study','Study'],['deadline','Academic dates']].map(([kind,label]) => `<span><i class="event-${kind}"></i>${label}</span>`).join('')}</div>`;
+  return `${pageHeader('Academic calendar', 'See coursework, exams, classes, and personal events together.')}${card('Your calendar', 'Select an event to see details. Existing academic records appear here automatically.', `${toolbar}${legend}${view}`)}${card(`Events · ${dateLabel(selected)}`, 'Everything scheduled on the selected date.', `<div class="calendar-agenda">${calendarAgenda(selected)}</div>`)}`;
+}
+
+function showCalendarEventForm(record = null) {
+  const editing = Boolean(record?.id);
+  const modal = document.createElement('dialog'); modal.className = 'app-dialog';
+  const current = record || { date: calendarSelected || today(), category: 'personal' };
+  modal.innerHTML = `<form class="calendar-form"><div class="panel-heading"><div><h2>${editing ? 'Edit event' : 'Add event'}</h2><p>Personal calendar events are saved in this browser.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields"><label>Event title<input name="title" value="${esc(current.title || '')}" maxlength="120" required></label><label>Description<input name="description" value="${esc(current.description || '')}" maxlength="500" placeholder="Optional details"></label><label>Category<select name="category">${['personal','study','deadline','other'].map((category) => `<option value="${category}" ${current.category === category ? 'selected' : ''}>${categoryLabel(category)}</option>`).join('')}</select></label><label>Date<input name="date" type="date" value="${esc(current.date || today())}" required></label><div class="two-fields"><label>Start time<input name="start" type="time" value="${esc(current.start || '')}"></label><label>End time<input name="end" type="time" value="${esc(current.end || '')}"></label></div></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">${editing ? 'Save changes' : 'Save event'}</button></div></form>`;
+  document.body.append(modal); modal.showModal();
+  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => modal.close()));
+  modal.querySelector('form').addEventListener('submit', (event) => {
+    event.preventDefault(); const fields = new FormData(event.currentTarget), date = String(fields.get('date') || ''), start = String(fields.get('start') || ''), end = String(fields.get('end') || '');
+    const title = String(fields.get('title') || '').trim();
+    if (!title || title.length > 120 || !validDate(date)) return msg('Enter an event title and a valid date.');
+    if (start && end && start >= end) return msg('The event end time must be after its start time.');
+    const saved = { ...(record || {}), title, description: String(fields.get('description') || '').trim(), category: String(fields.get('category') || 'personal'), date, start, end };
+    if (!editing) { saved.id = crypto.randomUUID(); data.events.push(saved); } else Object.assign(record, saved);
+    calendarSelected = date; calendarCursor = dateFromIso(date); modal.close(); save(); msg(editing ? 'Event updated.' : 'Event saved.');
+  });
+  modal.addEventListener('close', () => modal.remove());
+}
+
+function showCalendarEventDetails(kind, id, date) {
+  let item;
+  if (kind === 'custom') item = data.events.find((event) => event.id === id);
+  else if (kind === 'assignment') item = data.assignments.find((event) => event.id === id);
+  else if (kind === 'exam') item = data.exams.find((event) => event.id === id);
+  else if (kind === 'class') item = data.classes.find((event) => event.id === id);
+  else if (kind === 'deadline') item = { title: id === 'semester-start' ? 'Semester begins' : 'Semester ends', description: data.settings.semester || '', date };
+  if (!item) return;
+  const category = kind === 'custom' ? item.category : kind;
+  const description = kind === 'class' ? item.location : item.description;
+  const time = item.start ? `${item.start}${item.end ? `–${item.end}` : ''}` : '';
+  const link = ({ assignment: '#assignments', exam: '#exams', class: '#timetable' })[kind];
+  const modal = document.createElement('dialog'); modal.className = 'app-dialog calendar-details';
+  modal.innerHTML = `<div class="panel-heading"><div><span class="calendar-detail-category event-${esc(category)}">${esc(categoryLabel(category))}</span><h2>${esc(item.title)}</h2><p>${date ? dateFromIso(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}${time ? ` · ${esc(time)}` : ''}${item.courseId ? ` · ${esc(courseName(item.courseId))}` : ''}</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div>${description ? `<p class="helper-text">${esc(description)}</p>` : ''}${item.done ? '<p class="completion-mark">Completed assignment</p>' : ''}<div class="dialog-actions">${kind === 'custom' ? `<button type="button" class="button button-secondary" data-action="calendar-edit" data-id="${esc(id)}">Edit event</button><button type="button" class="row-action-button" data-action="calendar-delete" data-id="${esc(id)}">Delete</button>` : link ? `<a class="button button-secondary" href="${link}" data-cancel>Open ${categoryLabel(kind).toLowerCase()} list</a>` : ''}<button type="button" class="button button-primary" data-cancel>Done</button></div>`;
+  document.body.append(modal); modal.showModal();
+  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => modal.close()));
+  modal.addEventListener('close', () => modal.remove());
+}
+
 function render() {
   currentPage = validRoute(location.hash.slice(1)) || currentPage || 'dashboard';
   document.querySelectorAll('.nav-item[data-page]').forEach((anchor) => {
@@ -295,12 +441,27 @@ function render() {
   document.querySelector('.breadcrumb strong').textContent = labels[currentPage] || 'Dashboard';
   content.innerHTML = views[currentPage]();
   bindPage();
+  syncProfileDisplay();
 }
 
 function bindPage() {
   document.querySelector('#settings-form')?.addEventListener('submit', saveSettings);
   document.querySelector('#whatif-form')?.addEventListener('submit', calculateWhatIf);
   document.querySelectorAll('.final-grade-form').forEach((form) => form.addEventListener('submit', saveFinalGrade));
+  document.querySelector('#student-profile-form')?.addEventListener('submit', saveStudentProfile);
+  document.querySelector('#creator-profile-form')?.addEventListener('submit', saveCreatorProfile);
+}
+
+function saveStudentProfile(event) {
+  event.preventDefault(); const fields = new FormData(event.currentTarget);
+  data.studentProfile = Object.fromEntries(['fullName','studentId','university','major','academicYear','semester','email'].map((key) => [key, String(fields.get(key) || '').trim()]));
+  save(); msg('Student profile saved on this browser.');
+}
+
+function saveCreatorProfile(event) {
+  event.preventDefault(); const fields = new FormData(event.currentTarget);
+  data.creatorProfile = { name: String(fields.get('name') || '').trim(), email: String(fields.get('email') || '').trim() };
+  save(); msg('Creator profile saved on this browser.');
 }
 
 function formFields(kind, record = {}) {
@@ -455,7 +616,11 @@ function exportData() {
 function validateImport(imported) {
   if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Choose an ACADELY JSON object.');
   if (imported.settings !== undefined && (!imported.settings || typeof imported.settings !== 'object' || Array.isArray(imported.settings))) throw new Error('The settings section is invalid.');
+  if (imported.studentProfile !== undefined && (!imported.studentProfile || typeof imported.studentProfile !== 'object' || Array.isArray(imported.studentProfile))) throw new Error('The student profile section is invalid.');
+  if (imported.creatorProfile !== undefined && (!imported.creatorProfile || typeof imported.creatorProfile !== 'object' || Array.isArray(imported.creatorProfile))) throw new Error('The creator profile section is invalid.');
   const merged = { ...defaults(), ...imported, settings: { ...defaults().settings, ...(imported.settings || {}) } };
+  merged.studentProfile = { ...defaults().studentProfile, ...(imported.studentProfile || {}) };
+  merged.creatorProfile = { ...defaults().creatorProfile, ...(imported.creatorProfile || {}) };
   for (const key of COLLECTIONS) {
     if (merged[key] === undefined) merged[key] = [];
     if (!Array.isArray(merged[key])) throw new Error(`${key} must be a list.`);
@@ -484,6 +649,13 @@ function validateImport(imported) {
   for (const key of ['assignments', 'classes', 'exams', 'sessions']) for (const item of merged[key]) if (item.courseId && !courseIds.has(item.courseId)) throw new Error(`A ${key.slice(0, -1)} refers to a course that is not in this file.`);
   for (const item of merged.assignments) if ((item.due && !validDate(item.due)) || (item.studyHours !== undefined && (!Number.isFinite(Number(item.studyHours)) || Number(item.studyHours) <= 0))) throw new Error('An assignment has an invalid due date or study duration.');
   for (const item of merged.exams) if (!validDate(item.date)) throw new Error('An exam has an invalid date.');
+  const eventCategories = new Set(['personal','study','deadline','other']);
+  for (const item of merged.events) {
+    if (typeof item.title !== 'string' || !item.title.trim() || item.title.length > 120 || !validDate(item.date) || !eventCategories.has(item.category || 'personal')) throw new Error('A calendar event has an invalid title, date, or category.');
+    if (item.start && !/^([01]\d|2[0-3]):[0-5]\d$/.test(item.start)) throw new Error('A calendar event has an invalid start time.');
+    if (item.end && !/^([01]\d|2[0-3]):[0-5]\d$/.test(item.end)) throw new Error('A calendar event has an invalid end time.');
+    if (item.start && item.end && item.start >= item.end) throw new Error('A calendar event end time must follow its start time.');
+  }
   for (const item of merged.sessions) if (!validDate(item.date) || !Number.isFinite(Number(item.hours)) || Number(item.hours) <= 0 || Number(item.hours) > 16) throw new Error('A study session has an invalid date or duration.');
   for (const course of merged.courses) if (course.finalGrade != null && course.finalGrade !== '' && (!Number.isFinite(Number(course.finalGrade)) || Number(course.finalGrade) < 0 || Number(course.finalGrade) > 100)) throw new Error('A course has an invalid final grade.');
   return merged;
@@ -519,6 +691,21 @@ document.addEventListener('click', (event) => {
   const control = event.target.closest('[data-action]');
   if (!control) return;
   const { action, kind, id } = control.dataset;
+  if (action === 'calendar-select') { calendarSelected = control.dataset.date; calendarCursor = dateFromIso(calendarSelected); render(); }
+  else if (action === 'calendar-view') { calendarMode = ['month','week','day'].includes(control.dataset.view) ? control.dataset.view : 'month'; render(); }
+  else if (action === 'calendar-today') { calendarSelected = today(); calendarCursor = dateFromIso(calendarSelected); render(); }
+  else if (action === 'calendar-shift') {
+    const direction = Number(control.dataset.direction) < 0 ? -1 : 1;
+    if (calendarMode === 'month') calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + direction, 1, 12);
+    else { calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), calendarCursor.getDate() + direction * (calendarMode === 'week' ? 7 : 1), 12); }
+    calendarSelected = isoDate(calendarCursor); render();
+  }
+  else if (action === 'calendar-add') showCalendarEventForm();
+  else if (action === 'calendar-event') { event.stopPropagation(); showCalendarEventDetails(kind, id, control.dataset.date); }
+  else if (action === 'calendar-edit') { control.closest('dialog')?.close(); showCalendarEventForm(data.events.find((item) => item.id === id)); }
+  else if (action === 'calendar-delete') {
+    if (confirm('Delete this personal calendar event?')) { control.closest('dialog')?.close(); data.events = data.events.filter((item) => item.id !== id); save(); msg('Calendar event deleted.'); }
+  }
   if (action === 'add') addRecord(kind || ({ assignments: 'assignment', timetable: 'class', exams: 'exam', gpa: 'course' }[currentPage] || 'assignment'), control.dataset.courseId || '');
   else if (action === 'quick-add') addRecord(data.courses.length ? 'assignment' : 'course');
   else if (action === 'add-assessment') addRecord('assessment');
@@ -577,7 +764,7 @@ window.addEventListener('storage', (event) => { if (event.key === KEY) { data = 
 document.querySelector('#menu-toggle').addEventListener('click', () => toggleMenu());
 document.querySelector('#mobile-overlay').addEventListener('click', () => toggleMenu(false));
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') toggleMenu(false); });
-document.querySelector('.icon-button')?.addEventListener('click', () => msg('You’re all caught up.'));
-document.querySelector('.profile-button')?.addEventListener('click', () => { location.hash = '#settings'; });
+document.querySelector('.icon-button[aria-label="Notifications"]')?.addEventListener('click', () => msg('You’re all caught up.'));
+document.querySelector('.profile-button')?.addEventListener('click', () => { location.hash = '#profile'; });
 document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 render();
