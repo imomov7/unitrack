@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="600" viewBox="0 0 600 600" role="img" aria-labelledby="title desc">
+  <title id="title">ACADELY stacked logo</title><desc id="desc">Centered ACADELY geometric progress mark above the wordmark</desc>
+  <g transform="translate(108 42) scale(3)" fill="#000000"><path d="M18 112V82L28 72H42V112Z M52 112V56L62 46H76V112Z M86 112V30L96 20H110V112Z"/></g>
+  <text x="300" y="478" text-anchor="middle" fill="#000000" font-family="Arial, Helvetica, sans-serif" font-size="72" font-weight="700" letter-spacing="9">ACADELY</text>
+</svg>

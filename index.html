@@ -4,8 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0f19">
-  <meta name="description" content="UniTrack helps you keep your academic life organized.">
-  <title>UniTrack — Your academic workspace</title>
+  <meta name="description" content="ACADELY helps you organize courses, grades, deadlines, and study time.">
+  <link rel="icon" type="image/svg+xml" href="assets/branding/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/branding/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/branding/favicon-16.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-icon.png">
+  <title>ACADELY — Your academic workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -16,9 +20,9 @@
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="Main navigation">
-      <a class="brand" href="#dashboard" aria-label="UniTrack home">
-        <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M7 7h7v7H7zM18 7h7v18h-7zM7 18h7v7H7z"/></svg></span>
-        <span class="brand-name">unitrack<span class="brand-period">.</span></span>
+      <a class="brand" href="#dashboard" aria-label="ACADELY home">
+        <img class="brand-logo" src="assets/branding/acadely-logo-white.svg" alt="ACADELY">
+        <img class="brand-icon" src="assets/branding/acadely-icon-white.svg" alt="" aria-hidden="true">
       </a>
       <div class="workspace-label">WORKSPACE</div>
       <nav class="nav-list">
@@ -43,6 +47,7 @@
     <main class="main-content" id="main-content">
       <header class="topbar">
         <button class="mobile-menu" id="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
+        <button class="sidebar-collapse-toggle" id="sidebar-collapse-toggle" type="button" aria-label="Collapse sidebar" title="Collapse sidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 9l-3 3 3 3"/></svg></button>
         <div class="breadcrumb"><span>Workspace</span><span class="crumb-sep">/</span><strong>Dashboard</strong></div>
         <div class="topbar-actions"><span class="today-label" id="top-date"></span><button class="icon-button" type="button" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><i></i></button><span class="top-avatar">S</span></div>
       </header>
@@ -64,7 +69,7 @@
           <article class="panel progress-panel"><div class="panel-heading"><div><h2>Academic progress</h2><p>Your semester at a glance</p></div><button class="subtle-button" type="button" title="Progress will update as you add assignments">This semester <span>⌄</span></button></div><div class="progress-summary"><div class="progress-ring"><div class="ring-inner"><strong>0<span>%</span></strong><small>completed</small></div></div><div class="progress-legend"><div><i class="legend-dot violet-dot"></i><span>Completed</span><strong>0</strong></div><div><i class="legend-dot muted-dot"></i><span>Remaining</span><strong>0</strong></div></div></div><div class="grade-overview"><div class="grade-heading"><span>Grade overview</span><a href="#grades">Open calculator <span>↗</span></a></div><div class="grade-placeholder"><span>No grades yet</span><span>Add assessments to track your grades</span></div></div></article>
           <article class="panel deadlines-panel"><div class="panel-heading"><div><h2>Upcoming deadlines</h2><p>Stay ahead of what’s due</p></div><a class="text-link" href="#assignments">All assignments <span>↗</span></a></div><div class="empty-state horizontal"><span class="empty-icon"><svg viewBox="0 0 24 24"><path d="M8 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"/><rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="M8 12h8M8 16h5"/></svg></span><div><strong>No deadlines coming up</strong><span>When you add assignments, your next due dates will appear here.</span></div><a class="empty-link" href="#assignments" aria-label="Add assignment">+</a></div></article>
         </section>
-        <footer class="page-footer"><span>UniTrack <span class="footer-dot">·</span> Your academic workspace</span><span>Small steps, big semesters.</span></footer>
+        <footer class="page-footer"><span>ACADELY <span class="footer-dot">·</span> Your academic workspace</span><span>Small steps, big semesters.</span></footer>
       </div>
     </main>
   </div>

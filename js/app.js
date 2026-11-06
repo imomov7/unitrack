@@ -1,4 +1,4 @@
-// UniTrack browser data layer, page rendering, and event handlers.
+// ACADELY browser data layer, page rendering, and event handlers.
 // Keep KEY stable so existing student data remains available after upgrades.
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions'];
@@ -12,6 +12,27 @@ let assignmentFilter = 'all';
 let assignmentSearch = '';
 let data = load();
 let currentPage = validRoute(location.hash.slice(1)) || 'dashboard';
+
+const appShell = document.querySelector('.app-shell');
+const sidebarToggle = document.querySelector('#sidebar-collapse-toggle');
+try {
+  if (localStorage.getItem('acadely-sidebar-collapsed') === 'true') appShell.classList.add('sidebar-collapsed');
+} catch { /* Sidebar preference is optional when browser storage is unavailable. */ }
+function syncSidebarToggle() {
+  const collapsed = appShell.classList.contains('sidebar-collapsed');
+  sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+  sidebarToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+  document.querySelectorAll('.nav-item[data-page]').forEach((item) => {
+    if (collapsed) item.title = item.textContent.trim();
+    else item.removeAttribute('title');
+  });
+}
+sidebarToggle.addEventListener('click', () => {
+  appShell.classList.toggle('sidebar-collapsed');
+  try { localStorage.setItem('acadely-sidebar-collapsed', String(appShell.classList.contains('sidebar-collapsed'))); } catch { /* Keep the current-session toggle usable. */ }
+  syncSidebarToggle();
+});
+syncSidebarToggle();
 
 function defaultScale(maxGpa = 4) {
   const max = Number(maxGpa) || 4;
@@ -106,7 +127,7 @@ function empty(title, description, kind = '') {
   return `<div class="empty-state compact">${control}<strong>${title}</strong><span>${description}</span></div>`;
 }
 function card(title, subtitle, body, action = '') { return `<article class="panel"><div class="panel-heading"><div><h2>${title}</h2><p>${subtitle}</p></div>${action}</div>${body}</article>`; }
-function pageHeader(title, subtitle, add = '') { return `<section class="welcome-row"><div><div class="eyebrow">UNITRACK WORKSPACE</div><h1>${title}<span class="title-period">.</span></h1><p class="welcome-subtitle">${subtitle}</p></div>${add}</section>`; }
+function pageHeader(title, subtitle, add = '') { return `<section class="welcome-row"><div><div class="eyebrow">ACADELY WORKSPACE</div><h1>${title}<span class="title-period">.</span></h1><p class="welcome-subtitle">${subtitle}</p></div>${add}</section>`; }
 function addButton(label, kind = '') { return button(`<span class="plus">+</span> ${label}`, 'add', 'primary', kind ? `data-kind="${kind}"` : ''); }
 function progressBar(value) { return `<div class="data-progress"><span style="width:${Math.max(0, Math.min(100, Number(value) || 0))}%"></span></div>`; }
 function gpaSummary() { return UniTrackMath.calculateGpa(data.courses, data.assessments, data.settings.gradeScale, data.settings.maxGpa); }
@@ -114,7 +135,7 @@ function gpaSummary() { return UniTrackMath.calculateGpa(data.courses, data.asse
 function onboarding() {
   const hasData = COLLECTIONS.some((key) => data[key].length);
   if (hasData) return '';
-  return card('Welcome to UniTrack', 'A simple place to organize courses, deadlines, grades, and study time.', `<ol class="setup-steps"><li><strong>1. Add your first course</strong><span>Start with a course name and its credit hours.</span>${button('Add a course', 'add', 'primary', 'data-kind="course"')}</li><li><strong>2. Add assignments and exams</strong><span>Give each item a due date so your dashboard and study plan can help.</span><a class="text-link" href="#assignments">Open assignments ↗</a></li><li><strong>3. Track your grades and classes</strong><span>Record marks, assessment weights, and your weekly timetable.</span><a class="text-link" href="#grades">Open grade calculator ↗</a></li></ol>`, '<a class="text-link" href="#settings">Set university details ↗</a>');
+  return card('Welcome to ACADELY', 'A simple place to organize courses, deadlines, grades, and study time.', `<ol class="setup-steps"><li><strong>1. Add your first course</strong><span>Start with a course name and its credit hours.</span>${button('Add a course', 'add', 'primary', 'data-kind="course"')}</li><li><strong>2. Add assignments and exams</strong><span>Give each item a due date so your dashboard and study plan can help.</span><a class="text-link" href="#assignments">Open assignments ↗</a></li><li><strong>3. Track your grades and classes</strong><span>Record marks, assessment weights, and your weekly timetable.</span><a class="text-link" href="#grades">Open grade calculator ↗</a></li></ol>`, '<a class="text-link" href="#settings">Set university details ↗</a>');
 }
 
 function dashboard() {
