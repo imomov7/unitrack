@@ -1,9 +1,13 @@
+Warning: truncated output (original token count: 21193)
+Total output lines: 763
+
 // ACADELY browser data layer, page rendering, and event handlers.
 // Keep KEY stable so existing student data remains available after upgrades.
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const APP_VERSION = '1.1.0';
+const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo', email: 'imomovabdullo009@gmail.com' });
 const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about };
 const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grade calculator', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY' };
 const content = document.querySelector('.page-content');
@@ -246,9 +250,8 @@ function profile() {
 }
 
 function about() {
-  const creator = data.creatorProfile;
   return `${pageHeader('About Acadely', 'Your academic journey, made clearer.')}`+
-    `<section class="about-grid">${card('What Acadely is', 'One clear workspace for the moving parts of university life.', '<p>Acadely brings courses, assignments, exams, grades, timetables, and study plans together so students can see what needs attention.</p>')}${card('Why it was created', 'Less time searching. More time making progress.', '<p>University work is often scattered across calendars, course pages, and personal notes. Acadely was created to make those responsibilities easier to organize in one place.</p>')}${card('Mission', 'Help students make steady, informed progress.', '<p>Make academic planning easier to understand, easier to maintain, and useful across different universities and grading systems.</p>')}${card('Vision', 'A calmer way to manage a semester.', '<p>Give every student a reliable overview of their work, time, and progress without adding more complexity to their day.</p>')}${card('The problems Acadely works to solve', 'Clear deadlines, connected tools, and useful context.', '<ul class="about-list"><li>Deadlines spread across different tools.</li><li>Unclear course progress and grade expectations.</li><li>Difficulty balancing study time with weekly classes.</li><li>Academic information that is hard to review at a glance.</li></ul>')}${card('Creator profile', 'Public creator information is separate from your private student profile.', `<form id="creator-profile-form" class="settings-form"><label>Creator name<input name="name" value="${esc(creator.name)}" maxlength="120" placeholder="Name shown on About Acadely"></label><label>Gmail contact<input name="email" type="email" value="${esc(creator.email)}" maxlength="254" placeholder="name@gmail.com"></label><div><button class="button button-primary">Save creator profile</button></div></form><p class="helper-text">This information is stored locally in this browser and is not verified or synced to other visitors.</p>${creator.email ? `<a class="text-link" href="mailto:${encodeURIComponent(creator.email)}">Contact ${esc(creator.name || 'the creator')} ↗</a>` : '<p class="helper-text">Add a creator name and Gmail above to show contact information here.</p>'}`)}</section><div class="version-note">ACADELY · Browser edition · Version ${APP_VERSION}</div>`;
+    `<section class="about-grid">${card('What Acadely is', 'One clear workspace for the moving parts of university life.', '<p>Acadely brings courses, assignments, exams, grades, timetables, and study plans together so students can see what needs attention.</p>')}${card('Why it was created', 'Less time searching. More time making progress.', '<p>University work is often scattered across calendars, course pages, and personal notes. Acadely was created to make those responsibilities easier to organize in one place.</p>')}${card('Mission', 'Help students make steady, informed progress.', '<p>Make academic planning easier to understand, easier to maintain, and useful across different universities and grading systems.</p>')}${card('Vision', 'A calmer way to manage a semester.', '<p>Give every student a reliable overview of their work, time, and progress without adding more complexity to their day.</p>')}${card('The problems Acadely works to solve', 'Clear deadlines, connected tools, and useful context.', '<ul class="about-list"><li>Deadlines spread across different tools.</li><li>Unclear course progress and grade expectations.</li><li>Difficulty balancing study time with weekly classes.</li><li>Academic information that is hard to review at a glance.</li></ul>')}${card('Creator profile', 'Creator of ACADELY', `<div class="profile-preview"><span class="avatar profile-avatar">${esc(initials(CREATOR_PROFILE.name))}</span><div><strong>${esc(CREATOR_PROFILE.name)}</strong><a class="text-link" href="mailto:${encodeURIComponent(CREATOR_PROFILE.email)}">${esc(CREATOR_PROFILE.email)}</a><small>Public creator contact</small></div></div>`)}</section><div class="version-note">ACADELY · Browser edition · Version ${APP_VERSION}</div>`;
 }
 
 function scaleRow(grade, index) {
@@ -310,51 +313,7 @@ function planRow(plan) { return `<div class="data-row"><div><strong>${esc(plan.t
 
 function planner() {
   const suggestions = makePlan();
-  return `${pageHeader('Smart study planner', 'A transparent daily plan based on your deadlines and available hours.', button('Refresh suggestions', 'refresh-plan'))}${card('Suggested sessions', 'Urgency uses deadline proximity, priority, and available hours. You can change any suggestion.', suggestions.length ? suggestions.map((plan) => `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} hours</strong><small>${esc(plan.why)} · ${dateLabel(plan.date)}</small></div><div class="row-actions"><button data-action="save-plan" data-id="${esc(plan.task.id)}" data-exam="${plan.task.exam}" data-hours="${plan.hours}" data-date="${esc(plan.date)}">Add to plan</button></div></div>`).join('') : empty('Nothing to schedule', 'Add an assignment or exam with a due date to receive a suggestion.', 'assignment'))}${card('Your study sessions', 'Complete, edit, or remove saved sessions.', data.sessions.length ? data.sessions.map((session) => `<div class="data-row"><div><strong>${esc(session.title)} · ${Number(session.hours) || 0}h ${session.done ? '<span class="completion-mark">✓ Done</span>' : ''}</strong><small>${dateLabel(session.date)} · ${esc(session.reason || 'Personal session')}</small></div><div class="row-actions"><button data-action="session-toggle" data-id="${esc(session.id)}">${session.done ? 'Undo' : 'Complete'}</button><button data-action="session-edit" data-id="${esc(session.id)}">Edit</button><button data-action="session-delete" data-id="${esc(session.id)}">Delete</button></div></div>`).join('') : empty('No saved sessions', 'Add suggestions to create a personal study plan.'))}${card('Your available time', 'Daily study time is configurable in Settings', `<p class="helper-text">${Number(data.settings.availableHours) || 2} hours per day. Timetable classes are displayed on the dashboard; you can adjust available study hours independently in Settings.</p><a class="text-link" href="#settings">Adjust study availability ↗</a>`)}`;
-}
-
-function isoDate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-}
-function dateFromIso(value) { return new Date(`${value}T12:00:00`); }
-function mondayOf(date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-  return start;
-}
-function calendarEvents(from, to) {
-  const start = isoDate(from), end = isoDate(to), events = [];
-  const within = (date) => validDate(date) && date >= start && date <= end;
-  for (const item of data.assignments) if (within(item.due)) events.push({ id: item.id, kind: 'assignment', category: 'assignment', title: item.title, description: item.description || '', date: item.due, courseId: item.courseId, done: Boolean(item.done) });
-  for (const item of data.exams) if (within(item.date)) events.push({ id: item.id, kind: 'exam', category: 'exam', title: item.title, description: '', date: item.date, courseId: item.courseId });
-  for (const item of data.events) if (within(item.date)) events.push({ id: item.id, kind: 'custom', category: item.category || 'personal', title: item.title, description: item.description || '', date: item.date, start: item.start || '', end: item.end || '' });
-  for (const item of data.classes) {
-    if (!DAYS.includes(item.day)) continue;
-    const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 12);
-    while (isoDate(cursor) <= end) {
-      if (DAYS[(cursor.getDay() + 6) % 7] === item.day) events.push({ id: `${item.id}-${isoDate(cursor)}`, sourceId: item.id, kind: 'class', category: 'class', title: item.title, description: item.location || '', date: isoDate(cursor), start: item.start || '', end: item.end || '', courseId: item.courseId });
-      cursor.setDate(cursor.getDate() + 1);
-    }
-  }
-  if (within(data.settings.start)) events.push({ id: 'semester-start', kind: 'deadline', category: 'deadline', title: 'Semester begins', description: data.settings.semester || '', date: data.settings.start });
-  if (within(data.settings.end)) events.push({ id: 'semester-end', kind: 'deadline', category: 'deadline', title: 'Semester ends', description: data.settings.semester || '', date: data.settings.end });
-  return events.sort((a, b) => a.date.localeCompare(b.date) || String(a.start || '').localeCompare(String(b.start || '')) || a.title.localeCompare(b.title));
-}
-function categoryLabel(category) {
-  return ({ assignment: 'Assignment', exam: 'Exam', class: 'Class', deadline: 'Academic deadline', personal: 'Personal', study: 'Study', other: 'Other' })[category] || 'Personal';
-}
-function calendarEventButton(item, compact = false) {
-  const time = item.start ? `${item.start} ` : '';
-  return `<button type="button" class="calendar-event event-${esc(item.category)}${item.done ? ' is-complete' : ''}" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}" title="${esc(categoryLabel(item.category) + ': ' + item.title)}"><span class="event-dot"></span>${compact ? '' : `<span class="event-time">${esc(time)}</span>`}<span class="event-title">${esc(item.title)}</span></button>`;
-}
-function monthGrid() {
-  const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1, 12);
-  const start = mondayOf(first), end = new Date(start); end.setDate(end.getDate() + 41);
-  const events = calendarEvents(start, end), selected = calendarSelected;
-  const headings = DAYS.map((day) => `<div class="calendar-weekday">${day.slice(0, 3)}</div>`).join('');
-  const cells = Array.from({ length: 42 }, (_, index) => {
-    const day = new Date(start); day.setDate(start.getDate() + index);
-    const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
+  return `${pageHeader('Smart study planner', 'A transparent daily plan based on your deadlines and available hours.', button('Refresh suggestions', 'refresh-plan'))}${card('Suggested sessions', 'Urgency uses deadline proximity, priority, and available hours. You can change any suggestion.', suggestions.length ? suggestions.map((plan) => `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')} hours</strong><small>${esc(plan.why)} · ${dateLabel(plan.date)}</small></div><div class="row-actions"><button data-action="save-plan" data-id="${esc(plan.task.id)}" data-exam="${plan.task.exam}" data-hours="${plan.hours}" data-date="${esc(plan.date)}">Add to plan</button></div></div>`).join('') : empty('Nothing to schedule', 'Add an assignment or exam with a due date to receive a suggestion.', 'assignment'))}${card('Your study sessions', 'Complete, edit, or remove saved sessions.', data.sessions.length ? data.sessions.map((session) => `<div …1193 tokens truncated… const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
     return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.slice(0, 3).map((item) => calendarEventButton(item, true)).join('')}${items.length > 3 ? `<span class="calendar-more">+${items.length - 3} more</span>` : ''}</div></div>`;
   }).join('');
   return `<div class="calendar-month-grid">${headings}${cells}</div>`;
@@ -449,19 +408,12 @@ function bindPage() {
   document.querySelector('#whatif-form')?.addEventListener('submit', calculateWhatIf);
   document.querySelectorAll('.final-grade-form').forEach((form) => form.addEventListener('submit', saveFinalGrade));
   document.querySelector('#student-profile-form')?.addEventListener('submit', saveStudentProfile);
-  document.querySelector('#creator-profile-form')?.addEventListener('submit', saveCreatorProfile);
 }
 
 function saveStudentProfile(event) {
   event.preventDefault(); const fields = new FormData(event.currentTarget);
   data.studentProfile = Object.fromEntries(['fullName','studentId','university','major','academicYear','semester','email'].map((key) => [key, String(fields.get(key) || '').trim()]));
   save(); msg('Student profile saved on this browser.');
-}
-
-function saveCreatorProfile(event) {
-  event.preventDefault(); const fields = new FormData(event.currentTarget);
-  data.creatorProfile = { name: String(fields.get('name') || '').trim(), email: String(fields.get('email') || '').trim() };
-  save(); msg('Creator profile saved on this browser.');
 }
 
 function formFields(kind, record = {}) {
