@@ -87,7 +87,7 @@ function save() {
     render();
     return true;
   } catch {
-    msg('UniTrack could not save in this browser. Check available storage space or browser privacy settings.');
+    msg('ACADELY could not save in this browser. Check available storage space or browser privacy settings.');
     return false;
   }
 }
@@ -199,7 +199,7 @@ function gpa() {
 
 function settings() {
   const setting = data.settings;
-  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">UniTrack stores your data in this browser’s LocalStorage. It does not sync to your GitHub repository. Export a JSON backup before replacing data with an import.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" hidden></label></div>`)}`;
+  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">ACADELY stores your data in this browser’s LocalStorage. It does not sync to your GitHub repository. Export a JSON backup before replacing data with an import.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" hidden></label></div>`)}`;
 }
 
 function scaleRow(grade, index) {
@@ -429,12 +429,12 @@ function calculateWhatIf(event) {
 function exportData() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob), anchor = document.createElement('a');
-  anchor.href = url; anchor.download = 'unitrack-data.json'; anchor.click();
+  anchor.href = url; anchor.download = 'acadely-data.json'; anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function validateImport(imported) {
-  if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Choose a UniTrack JSON object.');
+  if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Choose an ACADELY JSON object.');
   if (imported.settings !== undefined && (!imported.settings || typeof imported.settings !== 'object' || Array.isArray(imported.settings))) throw new Error('The settings section is invalid.');
   const merged = { ...defaults(), ...imported, settings: { ...defaults().settings, ...(imported.settings || {}) } };
   for (const key of COLLECTIONS) {
@@ -474,12 +474,12 @@ async function importFile(file) {
   try {
     const imported = JSON.parse(await file.text());
     const validated = validateImport(imported);
-    if (!confirm('Import this file and replace the UniTrack data saved in this browser? Export a backup first if you need to keep it.')) return;
+    if (!confirm('Import this file and replace the ACADELY data saved in this browser? Export a backup first if you need to keep it.')) return;
     data = validated;
     save();
     msg('Data imported successfully.');
   } catch (error) {
-    msg(error.message || 'Import failed. Choose a valid UniTrack JSON export.');
+    msg(error.message || 'Import failed. Choose a valid ACADELY JSON export.');
   }
 }
 
@@ -554,7 +554,7 @@ document.addEventListener('input', (event) => {
   const field = document.querySelector('#assignment-search'); field.focus(); field.setSelectionRange(cursor, cursor);
 });
 window.addEventListener('hashchange', () => { currentPage = validRoute(location.hash.slice(1)) || 'dashboard'; toggleMenu(false); render(); });
-window.addEventListener('storage', (event) => { if (event.key === KEY) { data = load(); render(); msg('Updated from another UniTrack tab.'); } });
+window.addEventListener('storage', (event) => { if (event.key === KEY) { data = load(); render(); msg('Updated from another ACADELY tab.'); } });
 document.querySelector('#menu-toggle').addEventListener('click', () => toggleMenu());
 document.querySelector('#mobile-overlay').addEventListener('click', () => toggleMenu(false));
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') toggleMenu(false); });
