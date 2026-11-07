@@ -22,6 +22,12 @@ Student profile and custom calendar event data use the existing `unitrack-data-v
 
 Open `index.html` in a current browser. ACADELY saves information in that browser's LocalStorage. It does not synchronize or back up data to the cloud. Export a JSON copy from Settings if you want to move your data to another browser.
 
+## Install Acadely as an app
+
+The GitHub Pages site is configured as a Progressive Web App under the `/unitrack/` path. After these files are deployed, open [https://imomov7.github.io/unitrack/](https://imomov7.github.io/unitrack/) over HTTPS. On Android, use the in-app **Install Acadely** button when Chrome offers it, or choose **Install app** / **Add to Home screen** in the browser menu. On iPhone or iPad, open the site in Safari, tap **Share**, choose **Add to Home Screen**, then tap **Add**. The PWA keeps academic records in the existing `unitrack-data-v1` LocalStorage entry; the service worker caches only the app shell and static assets.
+
+To publish an update, commit and push the project files to the repository's GitHub Pages branch. Bump `CACHE_NAME` in `service-worker.js` when changing the offline shell so installed copies replace the old static cache. An available update waits until the student taps **Reload to update**, then reloads the app without clearing LocalStorage. The first online visit is needed to install and cache the shell; while offline, Acadely indicates that device data may be stale.
+
 ## Main files
 
 - `index.html` defines the persistent navigation shell.

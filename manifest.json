@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "Acadely",
+  "short_name": "Acadely",
+  "description": "Your academic journey, made clearer.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#14213D",
+  "background_color": "#F7F8FC",
+  "icons": [
+    {
+      "src": "assets/branding/acadely-pwa-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "assets/branding/acadely-pwa-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

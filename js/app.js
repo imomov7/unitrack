@@ -16,6 +16,9 @@ let calendarMode = 'month';
 let calendarCursor = new Date();
 let calendarSelected = today();
 let storageWarningShown = false;
+let deferredInstallPrompt = null;
+let waitingServiceWorker = null;
+let reloadForServiceWorkerUpdate = false;
 let data = load();
 let currentPage = validRoute(location.hash.slice(1)) || 'dashboard';
 
@@ -30,7 +33,7 @@ function syncTheme() {
   themeToggle.innerHTML = light
     ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 13A8.5 8.5 0 0 1 11 3.2 8.6 8.6 0 1 0 20.8 13Z"/></svg>'
     : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
-  themeMeta.content = light ? '#f6f7fa' : '#10141d';
+  themeMeta.content = light ? '#F7F8FC' : '#14213D';
 }
 try { if (localStorage.getItem('acadely-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch { /* Theme preference is optional when browser storage is unavailable. */ }
 themeToggle.addEventListener('click', () => {
@@ -233,12 +236,32 @@ function gpa() {
 
 function settings() {
   const setting = data.settings;
-  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. It does not sync to GitHub. Export a JSON backup before importing data.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
+  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. It does not sync to GitHub. Export a JSON backup before importing data.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
 }
 
 function initials(name) {
   const parts = String(name || '').trim().split(/\s+/).filter(Boolean);
   return (parts.length > 1 ? `${parts[0][0]}${parts[parts.length - 1][0]}` : parts[0]?.slice(0, 2) || 'S').toUpperCase();
+}
+
+function isStandaloneApp() {
+  const displayMode = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
+  return Boolean(navigator.standalone || displayMode);
+}
+
+function isIosDevice() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+
+function installationCard() {
+  if (isStandaloneApp()) return '';
+  if (isIosDevice()) {
+    return card('Install Acadely on iPhone or iPad', 'Use Safari’s Add to Home Screen option for an app-style launch.', '<ol class="install-steps"><li>Open Acadely in Safari.</li><li>Tap the Share button.</li><li>Select <strong>Add to Home Screen</strong>.</li><li>Tap <strong>Add</strong>.</li></ol><p class="helper-text">Acadely is installed from this website; no App Store download is needed.</p>');
+  }
+  if (deferredInstallPrompt) {
+    return card('Install Acadely', 'Add Acadely to your home screen and open it like an app.', `<p class="helper-text">Your browser supports app installation.</p>${button('Install Acadely', 'install-app', 'primary')}`);
+  }
+  return card('Install Acadely', 'Add Acadely to your home screen for a standalone app experience.', '<p class="helper-text">On Android, open the browser menu and choose <strong>Install app</strong> or <strong>Add to Home screen</strong>. If your browser does not offer installation, continue using Acadely in the browser or open this page in Safari on iPhone.</p>');
 }
 
 function makeId() {
@@ -716,6 +739,67 @@ function toggleMenu(force) {
   menu.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
 }
 
+function syncNetworkStatus(message = '') {
+  const notice = document.querySelector('#network-status');
+  if (!notice) return;
+  const offline = message || !navigator.onLine;
+  notice.hidden = !offline;
+  notice.textContent = message || (offline
+    ? 'Offline mode: Acadely is showing data saved on this device. It may not include changes from other devices or newer app updates.'
+    : '');
+}
+
+function showServiceWorkerUpdate(worker) {
+  if (!worker) return;
+  waitingServiceWorker = worker;
+  const notice = document.querySelector('#update-status');
+  if (notice) notice.hidden = false;
+}
+
+function registerServiceWorker() {
+  if (!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return;
+  navigator.serviceWorker.register('./service-worker.js')
+    .then((registration) => {
+      if (registration.waiting && navigator.serviceWorker.controller) showServiceWorkerUpdate(registration.waiting);
+      registration.addEventListener('updatefound', () => {
+        const installing = registration.installing;
+        installing?.addEventListener('statechange', () => {
+          if (installing.state === 'installed' && navigator.serviceWorker.controller) showServiceWorkerUpdate(registration.waiting || installing);
+        });
+      });
+    })
+    .catch(() => {
+      // Installation remains available through browser menus when service
+      // workers are blocked by the current browser or hosting context.
+    });
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloadForServiceWorkerUpdate) location.reload();
+  });
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data === 'ACADELY_OFFLINE_FALLBACK') syncNetworkStatus('Offline mode: Acadely opened its cached app shell with this device’s saved data. It may not include changes from other devices or newer app updates.');
+  });
+}
+
+async function installAcadely() {
+  if (!deferredInstallPrompt) return;
+  const promptEvent = deferredInstallPrompt;
+  deferredInstallPrompt = null;
+  try {
+    await promptEvent.prompt();
+    const result = await promptEvent.userChoice;
+    if (currentPage === 'settings') render();
+    if (result?.outcome === 'accepted') msg('Acadely is being installed.');
+  } catch {
+    msg('Use your browser menu to install Acadely or add it to your home screen.');
+  }
+}
+
+function applyServiceWorkerUpdate() {
+  if (!waitingServiceWorker) return;
+  reloadForServiceWorkerUpdate = true;
+  waitingServiceWorker.postMessage('ACADELY_SKIP_WAITING');
+}
+
 document.addEventListener('click', (event) => {
   const anchor = event.target.closest('a[href^="#"]');
   if (anchor) {
@@ -761,6 +845,8 @@ document.addEventListener('click', (event) => {
   else if (action === 'scale-remove') { control.closest('[data-scale-row]')?.remove(); }
   else if (action === 'scale-reset') { const max = Number(document.querySelector('[name="maxGpa"]').value); document.querySelector('.scale-list').innerHTML = defaultScale(max).map(scaleRow).join(''); }
   else if (action === 'export') exportData();
+  else if (action === 'install-app') installAcadely();
+  else if (action === 'apply-update') applyServiceWorkerUpdate();
   else if (action === 'refresh-plan') render();
 });
 
@@ -800,5 +886,19 @@ document.querySelector('#mobile-overlay').addEventListener('click', () => toggle
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') toggleMenu(false); });
 document.querySelector('.icon-button[aria-label="Notifications"]')?.addEventListener('click', () => msg('You’re all caught up.'));
 document.querySelector('.profile-button')?.addEventListener('click', () => { location.hash = '#profile'; });
+window.addEventListener('beforeinstallprompt', (event) => {
+  event.preventDefault();
+  deferredInstallPrompt = event;
+  if (currentPage === 'settings') render();
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  if (currentPage === 'settings') render();
+  msg('Acadely is installed on this device.');
+});
+window.addEventListener('online', () => syncNetworkStatus());
+window.addEventListener('offline', () => syncNetworkStatus());
+syncNetworkStatus();
+registerServiceWorker();
 document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 render();
