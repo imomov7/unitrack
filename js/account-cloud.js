@@ -77,6 +77,10 @@
     return client.auth.resetPasswordForEmail(email, { redirectTo });
   }
 
+  async function resendSignupConfirmation(email, emailRedirectTo) {
+    return client.auth.resend({ type: 'signup', email, options: { emailRedirectTo } });
+  }
+
   async function updatePassword(password) {
     return client.auth.updateUser({ password });
   }
@@ -126,7 +130,7 @@
   }
 
   window.AcadelyCloudService = {
-    configured, initialize, signUp, signIn, setRemember, sendPasswordReset,
+    configured, initialize, signUp, signIn, setRemember, sendPasswordReset, resendSignupConfirmation,
     updatePassword, updateEmail, signOut, deleteAccount, loadWorkspace,
     saveWorkspace, subscribeWorkspace, updateProfileName, closeRealtime,
   };

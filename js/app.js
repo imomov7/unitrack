@@ -289,6 +289,7 @@ function authMarkup(mode = 'login', feedback = '') {
     forgot: ['Reset your password', 'We’ll send a secure reset link to your account email.'],
     reset: ['Choose a new password', 'Set a new password for your Acadely account.'],
     verify: ['Check your email', feedback || 'Follow the verification link to finish creating your account.'],
+    resend: ['Send a fresh confirmation link', 'Enter the email address you used to create your Acadely account.'],
     message: ['Acadely account', feedback || 'Your request was received.'],
   }[mode] || ['Welcome to Acadely', 'Sign in to continue.'];
   let form = '';
@@ -297,9 +298,12 @@ function authMarkup(mode = 'login', feedback = '') {
   if (mode === 'signup') form = `<form class="auth-form" data-auth-form="signup"><label>Full name<input name="fullName" autocomplete="name" required maxlength="120"></label><label>Email address<input type="email" name="email" autocomplete="email" required maxlength="254"></label><label>Password<span class="auth-password"><input type="password" name="password" autocomplete="new-password" minlength="8" required><button type="button" data-auth-action="toggle-password" aria-label="Show password">Show</button></span><small>Use at least 8 characters.</small></label><label>Confirm password<input type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><label class="remember-choice"><input type="checkbox" name="remember" ${cloudRememberSession ? 'checked' : ''}> Stay signed in on this device</label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Creating account…' : 'Create account'}</button><p class="auth-switch">Already registered? <button class="auth-link" type="button" data-auth-view="login">Sign in</button></p></form>`;
   if (mode === 'forgot') form = `<form class="auth-form" data-auth-form="forgot"><label>Email address<input type="email" name="email" autocomplete="email" required maxlength="254"></label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Sending…' : 'Send reset link'}</button><button class="auth-link" type="button" data-auth-view="login">Back to sign in</button></form>`;
   if (mode === 'reset') form = `<form class="auth-form" data-auth-form="reset"><label>New password<input type="password" name="password" autocomplete="new-password" minlength="8" required></label><label>Confirm new password<input type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Updating…' : 'Update password'}</button></form>`;
-  if (mode === 'verify' || mode === 'message') form = `<button class="button button-primary" type="button" data-auth-view="login">Back to sign in</button>`;
+  if (mode === 'resend') form = `<form class="auth-form" data-auth-form="resend"><label>Email address<input type="email" name="email" autocomplete="email" required maxlength="254"></label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Sending…' : 'Resend confirmation email'}</button><button class="auth-link" type="button" data-auth-view="login">Back to sign in</button></form>`;
+  if (mode === 'verify') form = `<form class="auth-form" data-auth-form="resend"><label>Email address<input type="email" name="email" autocomplete="email" required maxlength="254"></label><button class="button button-secondary" type="submit" ${accountBusy ? 'disabled' : ''}>Resend confirmation email</button></form><button class="button button-primary" type="button" data-auth-view="login">Back to sign in</button>`;
+  if (mode === 'message') form = `<button class="button button-primary" type="button" data-auth-view="login">Back to sign in</button>`;
   const error = feedback && !['verify', 'message'].includes(mode) ? `<p class="auth-feedback" role="alert">${esc(feedback)}</p>` : '';
-  return `<section class="auth-card"><img class="auth-logo" src="assets/branding/acadely-logo-white.svg" alt="ACADELY"><p class="eyebrow">YOUR ACADEMIC WORKSPACE</p><h1>${esc(intro[0])}</h1><p class="auth-description">${esc(intro[1])}</p>${error}${form}<small class="auth-privacy">Your account password is handled by Supabase Authentication. Acadely never stores it in app data.</small></section>`;
+  const resendLink = mode === 'login' && /email not confirmed/i.test(feedback) ? '<button class="auth-link" type="button" data-auth-view="resend">Resend confirmation email</button>' : '';
+  return `<section class="auth-card"><img class="auth-logo" src="assets/branding/acadely-logo-white.svg" alt="ACADELY"><p class="eyebrow">YOUR ACADEMIC WORKSPACE</p><h1>${esc(intro[0])}</h1><p class="auth-description">${esc(intro[1])}</p>${error}${resendLink}${form}<small class="auth-privacy">Your account password is handled by Supabase Authentication. Acadely never stores it in app data.</small></section>`;
 }
 
 function showAuth(mode, feedback = '') {
@@ -625,7 +629,11 @@ async function initializeAccountService() {
   }
 }
 
-function authRedirectUrl() { return `${location.origin}${location.pathname}`; }
+function authRedirectUrl() {
+  const productionUrl = 'https://imomov7.github.io/unitrack/';
+  if (location.protocol !== 'https:' || location.origin !== 'https://imomov7.github.io') return productionUrl;
+  return `${location.origin}${location.pathname.startsWith('/unitrack') ? location.pathname : '/unitrack/'}`;
+}
 
 async function handleAuthSubmit(event) {
   const form = event.target.closest('[data-auth-form]');
@@ -657,6 +665,10 @@ async function handleAuthSubmit(event) {
       const { error } = await window.AcadelyCloudService.sendPasswordReset(email, authRedirectUrl());
       if (error) throw error;
       showAuth('message', 'If an Acadely account uses that address, a password reset link is on the way.');
+    } else if (mode === 'resend') {
+      const { error } = await window.AcadelyCloudService.resendSignupConfirmation(email, authRedirectUrl());
+      if (error) throw error;
+      showAuth('verify', 'If that account still needs confirmation, a fresh link was sent. Check your inbox and spam folder.');
     } else if (mode === 'reset') {
       if (String(values.password) !== String(values.confirmPassword)) throw new Error('The passwords do not match.');
       const { error } = await window.AcadelyCloudService.updatePassword(values.password);
