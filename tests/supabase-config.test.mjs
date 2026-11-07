@@ -7,8 +7,8 @@ const configSource = await readFile(new URL('../js/supabase-config.js', import.m
 
 function configFor(url, key) {
   const source = configSource
-    .replace("const acadelySupabaseUrl = '';", `const acadelySupabaseUrl = ${JSON.stringify(url)};`)
-    .replace("const acadelySupabasePublishableKey = '';", `const acadelySupabasePublishableKey = ${JSON.stringify(key)};`);
+    .replace(/const acadelySupabaseUrl = .*;/, `const acadelySupabaseUrl = ${JSON.stringify(url)};`)
+    .replace(/const acadelySupabasePublishableKey = .*;/, `const acadelySupabasePublishableKey = ${JSON.stringify(key)};`);
   const sandbox = { window: {}, atob: (value) => Buffer.from(value, 'base64').toString('binary') };
   vm.runInNewContext(source, sandbox);
   return sandbox.window.ACADELY_SUPABASE_CONFIG;

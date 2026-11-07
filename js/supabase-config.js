@@ -3,8 +3,8 @@
    Fill these values only after creating the Supabase project. Never add a
    service-role key here.
 */
-const acadelySupabaseUrl = '';
-const acadelySupabasePublishableKey = '';
+const acadelySupabaseUrl = 'https://qmbxadvkvrvkrtansink.supabase.co';
+const acadelySupabasePublishableKey = 'sb_publishable_ZJQ_QNUV0CREQRQbS3bChw_6R_jUx8Q';
 function acadelyIsPublicSupabaseKey(value) {
   if (/^sb_publishable_[A-Za-z0-9_-]+$/.test(value)) return true;
   if (/^(sb_secret_|service_role)/i.test(value)) return false;

@@ -1,7 +1,7 @@
 /* ACADELY static shell cache. User data remains in browser LocalStorage and is
    never written to Cache Storage. Keep this worker and manifest under /unitrack/.
 */
-const CACHE_NAME = 'acadely-shell-v3';
+const CACHE_NAME = 'acadely-shell-v4';
 const BASE_URL = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './index.html',
