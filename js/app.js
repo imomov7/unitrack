@@ -9,6 +9,9 @@ const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa
 const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grade calculator', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY' };
 const content = document.querySelector('.page-content');
 const toast = document.querySelector('#toast');
+const authScreen = document.querySelector('#auth-screen');
+const accountConfig = window.ACADELY_SUPABASE_CONFIG || {};
+const cloudConfigured = accountConfig.configured === true;
 let toastTimer;
 let assignmentFilter = 'all';
 let assignmentSearch = '';
@@ -19,6 +22,26 @@ let storageWarningShown = false;
 let deferredInstallPrompt = null;
 let waitingServiceWorker = null;
 let reloadForServiceWorkerUpdate = false;
+let supabaseClient = null;
+let accountUser = null;
+let cloudRevision = 0;
+let cloudReady = false;
+let localChangeVersion = 0;
+let lastSyncedChangeVersion = 0;
+let cloudSyncTimer = null;
+let cloudSyncPromise = Promise.resolve();
+let cloudChannel = null;
+let cloudWriteSnapshot = null;
+let cloudWriteVersion = 0;
+let pendingMigrationForUserId = null;
+let authView = 'login';
+let authFeedback = '';
+let accountBusy = false;
+let cloudConflict = false;
+let authReady = false;
+let activatingAccountId = null;
+let cloudRememberSession = true;
+try { cloudRememberSession = localStorage.getItem('acadely-auth-persistence') !== 'session'; } catch { /* Persisting the auth preference is optional. */ }
 let data = load();
 let currentPage = validRoute(location.hash.slice(1)) || 'dashboard';
 
@@ -81,10 +104,10 @@ function sameScale(left, right) {
   return Array.isArray(left) && Array.isArray(right) && left.length === right.length && left.every((item, index) => String(item.letter).toUpperCase() === right[index].letter && Number(item.min) === right[index].min && Number(item.gpa) === right[index].gpa);
 }
 
-function load() {
+function load(storageKey = KEY) {
   const base = defaults();
   try {
-    const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
+    const saved = JSON.parse(localStorage.getItem(storageKey) || '{}');
     if (!saved || typeof saved !== 'object' || Array.isArray(saved)) return base;
     const merged = { ...base, ...saved, settings: { ...base.settings, ...(saved.settings || {}) }, studentProfile: { ...base.studentProfile, ...(saved.studentProfile || {}) }, creatorProfile: { ...base.creatorProfile, ...(saved.creatorProfile || {}) } };
     for (const key of COLLECTIONS) if (!Array.isArray(merged[key])) merged[key] = [];
@@ -112,13 +135,18 @@ function load() {
 function save() {
   let persisted = true;
   try {
-    localStorage.setItem(KEY, JSON.stringify(data));
+    const storageKey = accountUser ? `acadely-workspace-cache-v1:${accountUser.id}` : KEY;
+    localStorage.setItem(storageKey, JSON.stringify(data));
   } catch {
     // Some mobile browsers and private/file browsing modes deny LocalStorage.
     // Keep the in-memory app usable even when persistence is unavailable.
     persisted = false;
   }
   render();
+  if (persisted && accountUser && cloudReady) {
+    localChangeVersion += 1;
+    scheduleCloudSync();
+  }
   if (!persisted && !storageWarningShown) {
     storageWarningShown = true;
     msg('Your browser is blocking saved storage. Changes work in this session, but will not remain after closing the page.');
@@ -236,7 +264,470 @@ function gpa() {
 
 function settings() {
   const setting = data.settings;
-  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', 'Your data stays in this browser', `<p class="helper-text">ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. It does not sync to GitHub. Export a JSON backup before importing data.</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
+  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', accountUser ? 'Private cloud account and local cache' : 'Local data storage', `<p class="helper-text">${accountUser ? 'Your workspace is saved in your account and cached on this device for offline use. Export a JSON backup before importing data.' : 'ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. Export a JSON backup before importing data.'}</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${accountCard()}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
+}
+
+function accountCard() {
+  if (!cloudConfigured) return card('Acadely account', 'Cloud accounts are not connected yet.', '<p class="helper-text">You can keep using Acadely locally. To enable registration and cross-device sync, create a Supabase project, run the supplied schema, add its URL and public key to <code>js/supabase-config.js</code>, then publish the site.</p><a class="text-link" href="README.md">View Supabase setup steps ↗</a>');
+  if (!accountUser) return card('Acadely account', 'Sign in to manage your account.', '<button class="button button-primary" type="button" data-action="account-open-login">Sign in or create account</button>');
+  let migrationStatus = '';
+  try { migrationStatus = localStorage.getItem(`acadely-migration-choice-v1:${accountUser.id}`) || ''; } catch { /* Optional migration reminder. */ }
+  const canImportLocal = migrationStatus !== 'merged' && pendingMigrationForUserId !== accountUser.id && localDataHasContent(load(KEY));
+  return card('Acadely account', 'Your academic workspace syncs across your signed-in devices.', `<p class="helper-text">Signed in as <strong>${esc(accountUser.email || '')}</strong>. ${accountSyncSummary()}</p>${canImportLocal ? '<p><button class="button button-secondary" type="button" data-action="account-import-local">Import browser data</button></p>' : ''}<div class="account-actions"><button class="button button-secondary" type="button" data-action="account-open-email">Change email</button><button class="button button-secondary" type="button" data-action="account-open-password">Change password</button><button class="button button-secondary" type="button" data-action="account-sign-out">Log out</button><button class="button button-danger" type="button" data-action="account-delete">Delete account</button></div><p class="helper-text">Sessions on other devices are not listed here. Logging out ends this device’s session.</p>`);
+}
+
+function accountSyncSummary() {
+  const messages = { local: 'Changes are saved on this device.', syncing: 'Syncing your changes…', synced: 'Your changes are synced.', failed: 'Sync failed. Your local copy is kept.', conflict: 'Another device changed this workspace. Your local edits are preserved until the conflict is resolved.' };
+  return messages[document.querySelector('#cloud-status')?.dataset.state || (cloudReady ? 'synced' : 'local')];
+}
+
+function authMarkup(mode = 'login', feedback = '') {
+  const intro = {
+    loading: ['Connecting your Acadely account', 'Your local academic data stays on this device while Acadely checks your account.'],
+    login: ['Welcome back', 'Sign in to open your private academic workspace.'],
+    signup: ['Create your Acadely account', 'Use the same account to access your courses and plans on each device.'],
+    forgot: ['Reset your password', 'We’ll send a secure reset link to your account email.'],
+    reset: ['Choose a new password', 'Set a new password for your Acadely account.'],
+    verify: ['Check your email', feedback || 'Follow the verification link to finish creating your account.'],
+    message: ['Acadely account', feedback || 'Your request was received.'],
+  }[mode] || ['Welcome to Acadely', 'Sign in to continue.'];
+  let form = '';
+  if (mode === 'loading') form = '<div class="auth-loading" aria-label="Loading"></div>';
+  if (mode === 'login') form = `<form class="auth-form" data-auth-form="login"><label>Email address<input type="email" name="email" autocomplete="username" required maxlength="254"></label><label>Password<span class="auth-password"><input type="password" name="password" autocomplete="current-password" required><button type="button" data-auth-action="toggle-password" aria-label="Show password">Show</button></span></label><label class="remember-choice"><input type="checkbox" name="remember" ${cloudRememberSession ? 'checked' : ''}> Stay signed in on this device</label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Signing in…' : 'Sign in'}</button><button class="auth-link" type="button" data-auth-view="forgot">Forgot password?</button><p class="auth-switch">New to Acadely? <button class="auth-link" type="button" data-auth-view="signup">Create an account</button></p></form>`;
+  if (mode === 'signup') form = `<form class="auth-form" data-auth-form="signup"><label>Full name<input name="fullName" autocomplete="name" required maxlength="120"></label><label>Email address<input type="email" name="email" autocomplete="email" required maxlength="254"></label><label>Password<span class="auth-password"><input type="password" name="password" autocomplete="new-password" minlength="8" required><button type="button" data-auth-action="toggle-password" aria-label="Show password">Show</button></span><small>Use at least 8 characters.</small></label><label>Confirm password<input type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><label class="remember-choice"><input type="checkbox" name="remember" ${cloudRememberSession ? 'checked' : ''}> Stay signed in on this device</label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Creating account…' : 'Create account'}</button><p class="auth-switch">Already registered? <button class="auth-link" type="button" data-auth-view="login">Sign in</button></p></form>`;
+  if (mode === 'forgot') form = `<form class="auth-form" data-auth-form="forgot"><label>Email address<input type="email" name="email" autocomplete="email" required maxlength="254"></label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Sending…' : 'Send reset link'}</button><button class="auth-link" type="button" data-auth-view="login">Back to sign in</button></form>`;
+  if (mode === 'reset') form = `<form class="auth-form" data-auth-form="reset"><label>New password<input type="password" name="password" autocomplete="new-password" minlength="8" required></label><label>Confirm new password<input type="password" name="confirmPassword" autocomplete="new-password" minlength="8" required></label><button class="button button-primary" type="submit" ${accountBusy ? 'disabled' : ''}>${accountBusy ? 'Updating…' : 'Update password'}</button></form>`;
+  if (mode === 'verify' || mode === 'message') form = `<button class="button button-primary" type="button" data-auth-view="login">Back to sign in</button>`;
+  const error = feedback && !['verify', 'message'].includes(mode) ? `<p class="auth-feedback" role="alert">${esc(feedback)}</p>` : '';
+  return `<section class="auth-card"><img class="auth-logo" src="assets/branding/acadely-logo-white.svg" alt="ACADELY"><p class="eyebrow">YOUR ACADEMIC WORKSPACE</p><h1>${esc(intro[0])}</h1><p class="auth-description">${esc(intro[1])}</p>${error}${form}<small class="auth-privacy">Your account password is handled by Supabase Authentication. Acadely never stores it in app data.</small></section>`;
+}
+
+function showAuth(mode, feedback = '') {
+  authView = mode;
+  authFeedback = feedback;
+  authScreen.innerHTML = authMarkup(mode, feedback);
+  authScreen.hidden = false;
+  document.querySelector('.app-shell').hidden = true;
+}
+
+function showAcadelyApp() {
+  authScreen.hidden = true;
+  document.querySelector('.app-shell').hidden = false;
+}
+
+function setCloudStatus(state, message = '') {
+  const notice = document.querySelector('#cloud-status');
+  if (!notice) return;
+  notice.dataset.state = state;
+  notice.hidden = state === 'local' || state === 'synced';
+  const labelsByState = {
+    syncing: 'Saving to your Acadely account…',
+    failed: 'Cloud sync failed. Changes are saved on this device until the connection returns.',
+    conflict: 'A newer version exists on another device. Your local edits are still saved here; export a backup before loading the cloud copy.',
+  };
+  notice.innerHTML = `${esc(message || labelsByState[state] || '')}${state === 'failed' ? ' <button type="button" class="text-link" data-action="cloud-retry">Retry sync</button>' : ''}${state === 'conflict' ? ` <button type="button" class="text-link" data-action="cloud-export-local">Export local copy</button> <button type="button" class="text-link" data-action="cloud-load-remote">Load cloud copy</button>` : ''}`;
+  if (currentPage === 'settings' && accountUser) render();
+}
+
+function cloudCacheKey(userId) { return `acadely-workspace-cache-v1:${userId}`; }
+
+function persistCloudCache() {
+  if (!accountUser) return;
+  try { localStorage.setItem(cloudCacheKey(accountUser.id), JSON.stringify({ data, revision: cloudRevision })); } catch { /* Cloud storage remains authoritative when local storage is unavailable. */ }
+}
+
+function localRecordCounts(snapshot) {
+  return Object.fromEntries(COLLECTIONS.map((key) => [key, Array.isArray(snapshot[key]) ? snapshot[key].length : 0]));
+}
+
+function localDataHasContent(snapshot) {
+  const count = localRecordCounts(snapshot);
+  const settings = snapshot.settings || {};
+  const defaultSettings = defaults().settings;
+  const hasCustomSettings = Object.keys(defaultSettings).some((key) => stableJson(settings[key]) !== stableJson(defaultSettings[key]));
+  return Object.values(count).some(Boolean) || Object.values(snapshot.studentProfile || {}).some((value) => String(value || '').trim()) || hasCustomSettings;
+}
+
+function mergeWorkspace(local, cloud) {
+  const merged = { ...local, ...cloud };
+  for (const key of COLLECTIONS) {
+    const byId = new Map((local[key] || []).map((record) => [record.id, record]));
+    for (const record of cloud[key] || []) byId.set(record.id, record);
+    merged[key] = [...byId.values()];
+  }
+  const defaultsData = defaults();
+  merged.settings = { ...local.settings, ...cloud.settings };
+  for (const [key, defaultValue] of Object.entries(defaultsData.settings)) {
+    if (stableJson(cloud.settings?.[key]) === stableJson(defaultValue) && stableJson(local.settings?.[key]) !== stableJson(defaultValue)) {
+      merged.settings[key] = local.settings[key];
+    }
+  }
+  merged.studentProfile = { ...local.studentProfile, ...cloud.studentProfile };
+  for (const [key, value] of Object.entries(defaultsData.studentProfile)) if (!cloud.studentProfile?.[key] && local.studentProfile?.[key]) merged.studentProfile[key] = local.studentProfile[key];
+  return merged;
+}
+
+function previewLocalMigration(snapshot) {
+  const counts = localRecordCounts(snapshot);
+  const lines = ['Acadely found existing data in this browser:', ...COLLECTIONS.filter((key) => counts[key]).map((key) => `• ${counts[key]} ${key}`)];
+  if (snapshot.studentProfile?.fullName) lines.push('• Student profile details');
+  if (snapshot.settings?.university || snapshot.settings?.semester) lines.push('• University and semester settings');
+  lines.push('', 'Merge this data into your account? Records with matching IDs keep the account copy. Your original unitrack-data-v1 browser data will remain in place.');
+  return confirm(lines.join('\n'));
+}
+
+async function activateAccount(user) {
+  if (!user) return;
+  if (accountUser?.id === user.id && cloudReady) {
+    accountUser = user;
+    syncProfileDisplay();
+    return;
+  }
+  if (activatingAccountId === user.id) return;
+  if (accountUser?.id !== user.id) {
+    clearTimeout(cloudSyncTimer);
+    cloudRevision = 0;
+    localChangeVersion = 0;
+    lastSyncedChangeVersion = 0;
+    cloudWriteSnapshot = null;
+    cloudChannel = null;
+    pendingMigrationForUserId = null;
+  }
+  activatingAccountId = user.id;
+  const localSnapshot = load(KEY);
+  accountUser = user;
+  cloudReady = false;
+  cloudConflict = false;
+  try {
+    const workspace = await window.AcadelyCloudService.loadWorkspace();
+    let cloudData = workspace ? validateImport(workspace.data) : defaults();
+    cloudRevision = Number(workspace?.revision) || 0;
+    const migrationChoiceKey = `acadely-migration-choice-v1:${user.id}`;
+    let migrationChosen = false;
+    try { migrationChosen = localStorage.getItem(migrationChoiceKey) !== null; } catch { /* Ask again if local storage is unavailable. */ }
+    const hasLocal = localDataHasContent(localSnapshot);
+    const importLocal = hasLocal && !migrationChosen && previewLocalMigration(localSnapshot);
+    if (hasLocal && !migrationChosen && !importLocal) {
+      try { localStorage.setItem(migrationChoiceKey, 'kept-local'); } catch { /* Migration can proceed without the reminder flag. */ }
+    }
+    if (importLocal) {
+      data = mergeWorkspace(localSnapshot, cloudData);
+      cloudReady = true;
+      persistCloudCache();
+      pendingMigrationForUserId = user.id;
+      localChangeVersion += 1;
+      scheduleCloudSync();
+    } else {
+      data = cloudData;
+      cloudReady = true;
+      persistCloudCache();
+      lastSyncedChangeVersion = localChangeVersion;
+      if (!workspace) {
+        localChangeVersion += 1;
+        scheduleCloudSync();
+      }
+    }
+    showAcadelyApp();
+    render();
+    setCloudStatus(localChangeVersion > lastSyncedChangeVersion ? 'syncing' : 'synced');
+    attachWorkspaceRealtime(user.id);
+  } catch (error) {
+    cloudReady = false;
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(cloudCacheKey(user.id)) || 'null'); } catch { /* Ignore a damaged account cache. */ }
+    if (cached?.data) {
+      try { data = validateImport(cached.data); cloudRevision = Number(cached.revision) || 0; showAcadelyApp(); render(); }
+      catch { accountUser = null; activatingAccountId = null; showAuth('login', 'Acadely could not read this account’s saved workspace. Check your connection and try again.'); return; }
+      setCloudStatus('failed', 'Showing the last saved copy on this device. Cloud sync is unavailable; changes stay local until connection returns.');
+    } else {
+      accountUser = null;
+      showAuth('login', `Could not load your account workspace. ${error.message || 'Check your connection and try again.'}`);
+      activatingAccountId = null;
+      return;
+    }
+  }
+  activatingAccountId = null;
+}
+
+async function onRemoteWorkspaceChange(payload) {
+  const remoteRevision = Number(payload?.new?.revision) || 0;
+  if (!accountUser || remoteRevision <= cloudRevision) return;
+  if (cloudWriteSnapshot && stableJson(payload?.new?.data) === stableJson(cloudWriteSnapshot)) {
+    cloudRevision = remoteRevision;
+    lastSyncedChangeVersion = Math.max(lastSyncedChangeVersion, cloudWriteVersion);
+    persistCloudCache();
+    if (localChangeVersion > lastSyncedChangeVersion) scheduleCloudSync();
+    else setCloudStatus('synced');
+    return;
+  }
+  if (localChangeVersion > lastSyncedChangeVersion) {
+    cloudConflict = true;
+    cloudReady = false;
+    setCloudStatus('conflict');
+    return;
+  }
+  const versionAtRead = localChangeVersion;
+  try {
+    const latest = await window.AcadelyCloudService.loadWorkspace();
+    if (!latest || !accountUser) return;
+    if (localChangeVersion !== versionAtRead || localChangeVersion > lastSyncedChangeVersion) {
+      cloudConflict = true;
+      cloudReady = false;
+      setCloudStatus('conflict');
+      return;
+    }
+    data = validateImport(latest.data);
+    cloudRevision = Number(latest.revision) || remoteRevision;
+    lastSyncedChangeVersion = localChangeVersion;
+    persistCloudCache();
+    render();
+    msg('Synced an update from another device.');
+  } catch {
+    setCloudStatus('failed');
+  }
+}
+
+function stableJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
+  if (value && typeof value === 'object') return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+
+function attachWorkspaceRealtime(userId) {
+  if (!userId || cloudChannel) return;
+  cloudChannel = window.AcadelyCloudService.subscribeWorkspace(userId, (payload) => onRemoteWorkspaceChange(payload));
+}
+
+function scheduleCloudSync() {
+  if (!accountUser || !cloudReady || cloudConflict) return;
+  setCloudStatus('syncing');
+  clearTimeout(cloudSyncTimer);
+  cloudSyncTimer = setTimeout(() => {
+    cloudSyncPromise = cloudSyncPromise.then(flushCloudSync).catch(() => setCloudStatus('failed'));
+  }, 500);
+}
+
+async function flushCloudSync() {
+  if (!accountUser || !cloudReady || cloudConflict || localChangeVersion <= lastSyncedChangeVersion) return;
+  const version = localChangeVersion;
+  const snapshot = JSON.parse(JSON.stringify(data));
+  cloudWriteSnapshot = snapshot;
+  cloudWriteVersion = version;
+  try {
+    const result = await window.AcadelyCloudService.saveWorkspace(snapshot, cloudRevision);
+    cloudRevision = Number(result?.revision) || cloudRevision + 1;
+    lastSyncedChangeVersion = version;
+    cloudWriteSnapshot = null;
+    persistCloudCache();
+    if (pendingMigrationForUserId === accountUser.id) {
+      try { localStorage.setItem(`acadely-migration-choice-v1:${accountUser.id}`, 'merged'); } catch { /* The merged data is already confirmed in the cloud. */ }
+      pendingMigrationForUserId = null;
+      if (currentPage === 'settings') render();
+    }
+    setCloudStatus('synced');
+    if (version !== localChangeVersion) scheduleCloudSync();
+  } catch (error) {
+    cloudWriteSnapshot = null;
+    const conflict = error.code === '40001' || /WORKSPACE_CONFLICT|revision/i.test(error.message || '');
+    cloudConflict = conflict;
+    cloudReady = !conflict;
+    setCloudStatus(conflict ? 'conflict' : 'failed');
+  }
+}
+
+async function retryCloudSync() {
+  if (!accountUser) return;
+  try {
+    const workspace = await window.AcadelyCloudService.loadWorkspace();
+    if (workspace && Number(workspace.revision) !== cloudRevision) {
+      cloudConflict = true;
+      cloudReady = false;
+      setCloudStatus('conflict');
+      return;
+    }
+    cloudRevision = Number(workspace?.revision) || 0;
+    cloudReady = true;
+    cloudConflict = false;
+    attachWorkspaceRealtime(accountUser.id);
+    if (localChangeVersion > lastSyncedChangeVersion) flushCloudSync();
+    else setCloudStatus('synced');
+  } catch { setCloudStatus('failed'); }
+}
+
+async function loadCloudCopy() {
+  if (!accountUser || !confirm('Replace this device’s current view with the latest cloud version? Export the local copy first if it has edits you need to keep.')) return;
+  const versionAtRead = localChangeVersion;
+  try {
+    const workspace = await window.AcadelyCloudService.loadWorkspace();
+    if (!workspace) return;
+    if (localChangeVersion !== versionAtRead) {
+      setCloudStatus('conflict', 'A local edit happened while loading the cloud version. It was kept; export it and try again.');
+      return;
+    }
+    data = validateImport(workspace.data);
+    pendingMigrationForUserId = null;
+    cloudRevision = Number(workspace.revision) || 0;
+    lastSyncedChangeVersion = localChangeVersion;
+    cloudConflict = false;
+    cloudReady = true;
+    persistCloudCache();
+    render();
+    setCloudStatus('synced');
+  } catch { setCloudStatus('failed'); }
+}
+
+function importExistingLocalData() {
+  if (!accountUser || !cloudReady || cloudConflict) return msg('Reconnect and resolve the current sync status before importing browser data.');
+  const localSnapshot = load(KEY);
+  if (!localDataHasContent(localSnapshot) || !previewLocalMigration(localSnapshot)) return;
+  data = mergeWorkspace(localSnapshot, data);
+  pendingMigrationForUserId = accountUser.id;
+  save();
+  msg('Browser data was merged. Acadely is syncing it to your account.');
+}
+
+async function initializeAccountService() {
+  if (!cloudConfigured) {
+    authReady = true;
+    render();
+    return;
+  }
+  showAuth('loading');
+  if (!window.AcadelyCloudService?.configured) {
+    showAuth('login', 'The account service configuration is invalid. Check the Supabase URL and publishable key.');
+    return;
+  }
+  try {
+    const result = await window.AcadelyCloudService.initialize((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') { showAuth('reset'); return; }
+      if (session?.user) activateAccount(session.user);
+      else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
+        accountUser = null;
+        cloudReady = false;
+        cloudChannel = null;
+        cloudRevision = 0;
+        localChangeVersion = 0;
+        lastSyncedChangeVersion = 0;
+        cloudWriteSnapshot = null;
+        pendingMigrationForUserId = null;
+        clearTimeout(cloudSyncTimer);
+        window.AcadelyCloudService.closeRealtime();
+        data = load(KEY);
+        showAuth('login');
+      }
+    });
+    authReady = true;
+    if (result.session?.user) await activateAccount(result.session.user);
+    else showAuth('login');
+  } catch (error) {
+    authReady = true;
+    showAuth('login', error.message || 'The account service could not be reached. Check the connection and try again.');
+  }
+}
+
+function authRedirectUrl() { return `${location.origin}${location.pathname}`; }
+
+async function handleAuthSubmit(event) {
+  const form = event.target.closest('[data-auth-form]');
+  if (!form) return;
+  event.preventDefault();
+  const fields = new FormData(form);
+  const values = Object.fromEntries(fields.entries());
+  const mode = form.dataset.authForm;
+  const email = String(values.email || '').trim().toLowerCase();
+  accountBusy = true;
+  showAuth(mode);
+  try {
+    if (mode === 'login') {
+      cloudRememberSession = fields.get('remember') === 'on';
+      const { error } = await window.AcadelyCloudService.signIn({ email, password: values.password, remember: cloudRememberSession });
+      if (error) throw error;
+      showAuth('loading');
+    } else if (mode === 'signup') {
+      if (String(values.password) !== String(values.confirmPassword)) throw new Error('The passwords do not match.');
+      const fullName = String(values.fullName || '').trim();
+      if (!fullName) throw new Error('Enter your full name.');
+      cloudRememberSession = fields.get('remember') === 'on';
+      window.AcadelyCloudService.setRemember(cloudRememberSession);
+      const { data: result, error } = await window.AcadelyCloudService.signUp({ fullName, email, password: values.password, emailRedirectTo: authRedirectUrl() });
+      if (error) throw error;
+      if (result.session) await activateAccount(result.user);
+      else showAuth('verify', 'Your account was created. Check your inbox and verify the email address before signing in.');
+    } else if (mode === 'forgot') {
+      const { error } = await window.AcadelyCloudService.sendPasswordReset(email, authRedirectUrl());
+      if (error) throw error;
+      showAuth('message', 'If an Acadely account uses that address, a password reset link is on the way.');
+    } else if (mode === 'reset') {
+      if (String(values.password) !== String(values.confirmPassword)) throw new Error('The passwords do not match.');
+      const { error } = await window.AcadelyCloudService.updatePassword(values.password);
+      if (error) throw error;
+      await window.AcadelyCloudService.signOut();
+      accountBusy = false;
+      showAuth('login', 'Your password has been updated. Sign in with the new password.');
+      return;
+    }
+  } catch (error) {
+    showAuth(mode, error.message || 'Acadely could not complete that request. Please try again.');
+  } finally {
+    accountBusy = false;
+  }
+}
+
+function installAuthInteractions() {
+  authScreen.addEventListener('submit', handleAuthSubmit);
+  authScreen.addEventListener('click', (event) => {
+    const modeButton = event.target.closest('[data-auth-view]');
+    if (modeButton) showAuth(modeButton.dataset.authView);
+    const toggle = event.target.closest('[data-auth-action="toggle-password"]');
+    if (toggle) {
+      const input = toggle.parentElement.querySelector('input');
+      input.type = input.type === 'password' ? 'text' : 'password';
+      toggle.textContent = input.type === 'password' ? 'Show' : 'Hide';
+      toggle.setAttribute('aria-label', input.type === 'password' ? 'Show password' : 'Hide password');
+    }
+  });
+}
+
+function showAccountDialog(title, field, action, type = 'email') {
+  const modal = document.createElement('dialog');
+  modal.className = 'app-dialog';
+  modal.innerHTML = `<form class="account-change-form"><div class="panel-heading"><div><h2>${title}</h2><p>${type === 'email' ? 'A verification link will be sent to the new address.' : 'Use at least 8 characters.'}</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields"><label>${field}<input name="value" type="${type}" ${type === 'password' ? 'minlength="8" autocomplete="new-password"' : 'maxlength="254" autocomplete="email"'} required></label></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">Save</button></div></form>`;
+  document.body.append(modal);
+  openDialog(modal);
+  modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => closeDialog(modal)));
+  modal.addEventListener('close', () => modal.remove());
+  modal.querySelector('form').addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const value = new FormData(event.currentTarget).get('value');
+    try {
+      const { error } = type === 'email'
+        ? await window.AcadelyCloudService.updateEmail(String(value).trim(), authRedirectUrl())
+        : await window.AcadelyCloudService.updatePassword(value);
+      if (error) return msg(error.message || `Could not update ${field.toLowerCase()}.`);
+      closeDialog(modal);
+      msg(type === 'email' ? 'Check the new address to confirm the email change.' : 'Password updated.');
+    } catch (error) { msg(error.message || `Could not update ${field.toLowerCase()}.`); }
+  });
+}
+
+async function signOutAccount() {
+  clearTimeout(cloudSyncTimer);
+  await cloudSyncPromise.catch(() => {});
+  if (accountUser && cloudReady && !cloudConflict && localChangeVersion > lastSyncedChangeVersion) await flushCloudSync();
+  await cloudSyncPromise.catch(() => {});
+  const { error } = await window.AcadelyCloudService.signOut();
+  if (error) msg(error.message || 'Could not log out. Try again.');
+}
+
+async function deleteAccount() {
+  if (!confirm('Permanently delete your Acadely account and its cloud workspace? This cannot be undone. Your original local data remains on this browser.')) return;
+  clearTimeout(cloudSyncTimer);
+  await cloudSyncPromise.catch(() => {});
+  const { error } = await window.AcadelyCloudService.deleteAccount();
+  if (error) return msg(error.message || 'Account deletion did not complete. Your cloud data has not been reported as deleted.');
+  try { localStorage.removeItem(cloudCacheKey(accountUser.id)); } catch { /* Best-effort cleanup after server deletion. */ }
+  await window.AcadelyCloudService.signOut();
+  msg('Your Acadely account has been deleted.');
 }
 
 function initials(name) {
@@ -296,9 +787,9 @@ function submitForm(form) {
 }
 
 function syncProfileDisplay() {
-  const name = String(data.studentProfile.fullName || '').trim() || 'Student';
+  const name = String(data.studentProfile.fullName || accountUser?.user_metadata?.full_name || '').trim() || 'Student';
   document.querySelector('.profile-copy strong').textContent = name;
-  document.querySelector('.profile-copy small').textContent = 'Local profile · not verified';
+  document.querySelector('.profile-copy small').textContent = accountUser ? `Account · ${accountUser.email || ''}` : 'Local profile · not verified';
   document.querySelector('.avatar').textContent = initials(name);
   document.querySelector('.top-avatar').textContent = initials(name);
   document.querySelector('.top-avatar').title = name;
@@ -518,7 +1009,10 @@ function bindPage() {
 function saveStudentProfile(event) {
   event.preventDefault(); const fields = new FormData(event.currentTarget);
   data.studentProfile = Object.fromEntries(['fullName','studentId','university','major','academicYear','semester','email'].map((key) => [key, String(fields.get(key) || '').trim()]));
-  save(); msg('Student profile saved on this browser.');
+  save();
+  if (accountUser) {
+    window.AcadelyCloudService.updateProfileName(accountUser.id, data.studentProfile.fullName).then(() => msg('Student profile saved and synced.')).catch((error) => msg(error.message || 'Profile saved here, but the account profile did not sync.'));
+  } else msg('Student profile saved on this browser.');
 }
 
 function formFields(kind, record = {}) {
@@ -847,6 +1341,15 @@ document.addEventListener('click', (event) => {
   else if (action === 'export') exportData();
   else if (action === 'install-app') installAcadely();
   else if (action === 'apply-update') applyServiceWorkerUpdate();
+  else if (action === 'account-open-login') cloudConfigured ? showAuth('login') : msg('Create a Supabase project and configure its public URL/key to enable accounts.');
+  else if (action === 'account-import-local') importExistingLocalData();
+  else if (action === 'account-open-email') showAccountDialog('Change account email', 'New email address', 'email');
+  else if (action === 'account-open-password') showAccountDialog('Change account password', 'New password', 'password');
+  else if (action === 'account-sign-out') signOutAccount();
+  else if (action === 'account-delete') deleteAccount();
+  else if (action === 'cloud-retry') retryCloudSync();
+  else if (action === 'cloud-export-local') exportData();
+  else if (action === 'cloud-load-remote') loadCloudCopy();
   else if (action === 'refresh-plan') render();
 });
 
@@ -896,9 +1399,11 @@ window.addEventListener('appinstalled', () => {
   if (currentPage === 'settings') render();
   msg('Acadely is installed on this device.');
 });
-window.addEventListener('online', () => syncNetworkStatus());
+window.addEventListener('online', () => { syncNetworkStatus(); retryCloudSync(); });
 window.addEventListener('offline', () => syncNetworkStatus());
 syncNetworkStatus();
 registerServiceWorker();
+installAuthInteractions();
 document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 render();
+initializeAccountService();

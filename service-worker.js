@@ -1,7 +1,7 @@
 /* ACADELY static shell cache. User data remains in browser LocalStorage and is
    never written to Cache Storage. Keep this worker and manifest under /unitrack/.
 */
-const CACHE_NAME = 'acadely-shell-v2';
+const CACHE_NAME = 'acadely-shell-v3';
 const BASE_URL = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './index.html',
@@ -9,6 +9,8 @@ const SHELL_FILES = [
   './css/style.css',
   './js/grade-math.js',
   './js/app.js',
+  './js/account-cloud.js',
+  './js/supabase-config.js',
   './assets/branding/favicon.svg',
   './assets/branding/favicon-16.png',
   './assets/branding/favicon-32.png',
@@ -20,6 +22,7 @@ const SHELL_FILES = [
 ];
 const SHELL_PATHS = new Set(SHELL_FILES.map((file) => new URL(file, BASE_URL).pathname));
 const FONT_HOSTS = new Set(['fonts.googleapis.com', 'fonts.gstatic.com']);
+const SCRIPT_HOST = 'cdn.jsdelivr.net';
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -45,6 +48,18 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  if (url.hostname === SCRIPT_HOST && url.pathname === '/npm/@supabase/supabase-js@2') {
+    event.respondWith((async () => {
+      const cache = await caches.open(CACHE_NAME);
+      const cached = await cache.match(request);
+      const update = fetch(request).then((response) => {
+        if (response.ok) cache.put(request, response.clone());
+        return response;
+      });
+      return cached || update;
+    })());
+    return;
+  }
   if (FONT_HOSTS.has(url.hostname)) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);

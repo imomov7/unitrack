@@ -19,10 +19,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/style.css?v=acadely-pwa-1">
+  <script src="js/supabase-config.js?v=acadely-cloud-1"></script>
+  <script src="js/account-cloud.js?v=acadely-cloud-1" defer></script>
   <script src="js/grade-math.js?v=acadely-2" defer></script>
-  <script src="js/app.js?v=acadely-pwa-1" defer></script>
+  <script src="js/app.js?v=acadely-cloud-1" defer></script>
 </head>
 <body>
+  <main id="auth-screen" class="auth-screen" hidden aria-live="polite"></main>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="Main navigation">
       <a class="brand" href="#dashboard" aria-label="ACADELY home">
@@ -60,6 +63,7 @@
         <div class="topbar-actions"><span class="today-label" id="top-date"></span><button class="icon-button theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" title="Switch to light mode"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg></button><button class="icon-button" type="button" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><i></i></button><span class="top-avatar">S</span></div>
       </header>
       <div class="network-status" id="network-status" role="status" aria-live="polite" hidden></div>
+      <div class="cloud-status" id="cloud-status" role="status" aria-live="polite" hidden></div>
       <div class="update-status" id="update-status" role="status" aria-live="polite" hidden>
         <span>A new Acadely update is ready.</span>
         <button class="button button-secondary" type="button" data-action="apply-update">Reload to update</button>
