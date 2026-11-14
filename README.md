@@ -107,3 +107,11 @@ Validation includes all automated tests, the existing form integration harness, 
 The same static app supports `https://myacadely.vercel.app/` at the domain root and the existing GitHub Pages `/unitrack/` path. Import `imomov7/unitrack`, select Other, root `./`, no build/install command, and name the project `myacadely`. Manifest and service-worker URLs remain relative. Auth callbacks use an explicit list of production origins; unrecognized origins use the Vercel production root.
 
 Supabase Authentication → URL Configuration must include `https://myacadely.vercel.app/` in allowed redirect URLs, retaining the GitHub Pages URL for existing links. The account-deletion Edge Function allows the exact Vercel origin in addition to the existing origins; redeploy the function when updating this file. Existing browser-local data belongs to its original origin: export/import JSON to move local-only records between domains. Signed-in cloud data continues to use the same Supabase project.
+
+## Startup, Russian and top navigation (1.5.1)
+
+The workspace is hidden in initial HTML, with a critical inline hidden rule before external CSS, until local startup or the authenticated session is ready. A separate loading/error fallback remains visible if app assets fail. This prevents the full workspace from flashing before the sign-in screen. The saved theme and supported language direction are applied before paint. No session or student data is stored in the startup markup.
+
+Settings → Language now offers English, Arabic and Russian. `locales/ru.js` covers the existing interface catalogue, including messages and forms; dynamic statuses and date formatting follow the selected language. Russian and English use LTR; Arabic uses RTL. Official names, codes and student-entered values remain unchanged. The `acadely-language-v1` preference and `unitrack-data-v1` data key are preserved.
+
+The top Dashboard breadcrumb is an internal `#dashboard` link. It returns to the dashboard without reloading, clearing the session or leaving the app. Cache v12 includes Russian translations. Validation includes automated regressions, a DOM integration check with delayed authentication, the existing forms/data integration checks, and mobile browser language/navigation checks.
