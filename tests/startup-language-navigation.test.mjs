@@ -34,3 +34,13 @@ test('static assets use fresh code online, cached code offline, and never cache 
  handlers.get('fetch')(event());assert.equal(await(await intercepted).text(),'fresh app');assert.equal(putBody,'fresh app');offline=true;handlers.get('fetch')(event());assert.equal(await(await intercepted).text(),'cached app');
  let privateIntercepted=false;handlers.get('fetch')({request:new Request('https://private.supabase.co/rest/v1/student_workspaces'),respondWith:()=>{privateIntercepted=true;}});assert.equal(privateIntercepted,false);
 });
+test('language options are outside auth and workspace, with native labels and non-submit buttons',()=>{
+ const start=html.indexOf('<nav class="language-bar"');const end=html.indexOf('</nav>',start);const bar=html.slice(start,end);
+ assert.ok(start>0&&end<html.indexOf('<main id="auth-screen"'));assert.ok(end<html.indexOf('<div class="app-shell"'));
+ for(const [code,label]of [['en','English'],['ar','العربية'],['ru','Русский']])assert.match(bar,new RegExp(`type="button" data-language="${code}"[^>]*>${label}<`));
+});
+test('global language buttons and the Settings selector share the saved preference',()=>{
+ const buttons=['en','ar','ru'].map(language=>({dataset:{language},setAttribute(name,value){this[name]=value;}}));const select={value:'en'};const saved=new Map();
+ const root={document:{readyState:'loading',addEventListener(){},documentElement:{},querySelectorAll:()=>buttons,querySelector:s=>s==='#interface-language'?select:null},localStorage:{getItem:k=>saved.get(k),setItem:(k,v)=>saved.set(k,v)},CustomEvent:class{},dispatchEvent(){}};root.window=root;vm.createContext(root);vm.runInContext(file('js/i18n.js'),root);
+ for(const lang of ['ru','ar','en']){root.AcadelyI18n.set(lang);assert.equal(select.value,lang);assert.equal(saved.get('acadely-language-v1'),lang);assert.equal(buttons.filter(b=>b['aria-pressed']==='true').length,1);assert.equal(buttons.find(b=>b['aria-pressed']==='true').dataset.language,lang);}
+});
