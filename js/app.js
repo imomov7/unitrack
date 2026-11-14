@@ -1627,6 +1627,12 @@ document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(window
 render();
 initializeAccountService();
 
+// Refresh date labels when safe; editable forms keep their existing DOM and values.
+function refreshLanguageView() {
+  document.querySelector('.today-label')?.replaceChildren(new Date().toLocaleDateString(window.AcadelyI18n.locale,{weekday:'long',month:'long',day:'numeric'}));
+  if (!appShell.hidden && !content.querySelector('form')) render();
+}
+
 // Display-only protection: localisation never rewrites academic or profile values.
 function acadelyProtectedText() {
  const values=new Set();
@@ -1635,6 +1641,4 @@ function acadelyProtectedText() {
  for(const key of ['university','semester'])if(data.settings[key])values.add(data.settings[key]);
  return values;
 };
-window.addEventListener('acadely-language-changed',()=>{
- document.querySelector('.today-label')?.replaceChildren(new Date().toLocaleDateString(window.AcadelyI18n.locale,{weekday:'long',month:'long',day:'numeric'}));
-});
+window.addEventListener('acadely-language-changed',refreshLanguageView);
