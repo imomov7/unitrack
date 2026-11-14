@@ -46,6 +46,19 @@
           <button type="button" class="button button-secondary" id="startup-reload" hidden>Reload Acadely</button>
           <noscript><p>JavaScript is required to use Acadely. Enable it in your browser, then reload. Your existing browser data has not been cleared.</p></noscript>
         </section>
+  <script>
+    // Older installed workers may serve the previous app module once during an update.
+    // Wait until that module has actually exposed auth or rendered the local workspace.
+    window.addEventListener('acadely-rendered',()=>requestAnimationFrame(()=>{
+      const shell=document.querySelector('.app-shell'),auth=document.querySelector('#auth-screen');
+      if(window.ACADELY_SUPABASE_CONFIG?.configured!==true&&shell)shell.hidden=false;
+      if((auth&&!auth.hidden)||(shell&&!shell.hidden))document.querySelector('#app-boot')?.setAttribute('hidden','');
+    }));
+  </script>
+      <div class="update-status" id="update-status" role="status" aria-live="polite" hidden>
+        <span>A new Acadely update is ready.</span>
+        <button class="button button-secondary" type="button" data-action="apply-update">Reload to update</button>
+      </div>
   <main id="auth-screen" class="auth-screen" hidden aria-live="polite"></main>
   <div class="app-shell" hidden>
     <aside class="sidebar" id="sidebar" aria-label="Main navigation">
@@ -81,10 +94,7 @@
       </header>
       <div class="network-status" id="network-status" role="status" aria-live="polite" hidden></div>
       <div class="cloud-status" id="cloud-status" role="status" aria-live="polite" hidden></div>
-      <div class="update-status" id="update-status" role="status" aria-live="polite" hidden>
-        <span>A new Acadely update is ready.</span>
-        <button class="button button-secondary" type="button" data-action="apply-update">Reload to update</button>
-      </div>
+
       <div class="page-content" aria-busy="true">
 
       </div>

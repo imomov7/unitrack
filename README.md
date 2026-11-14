@@ -115,3 +115,7 @@ The workspace is hidden in initial HTML, with a critical inline hidden rule befo
 Settings → Language now offers English, Arabic and Russian. `locales/ru.js` covers the existing interface catalogue, including messages and forms; dynamic statuses and date formatting follow the selected language. Russian and English use LTR; Arabic uses RTL. Official names, codes and student-entered values remain unchanged. The `acadely-language-v1` preference and `unitrack-data-v1` data key are preserved.
 
 The top Dashboard breadcrumb is an internal `#dashboard` link. It returns to the dashboard without reloading, clearing the session or leaving the app. Cache v12 includes Russian translations. Validation includes automated regressions, a DOM integration check with delayed authentication, the existing forms/data integration checks, and mobile browser language/navigation checks.
+
+Static assets now use network-first loading with the installed static cache as an offline fallback, preventing stale app code from being combined with new HTML. An inline startup compatibility guard also supports visitors whose previous worker is still active during the update.
+
+A relative URL bug in static cache writes was corrected, and cache-write failures no longer discard fresh network responses. The existing update notice is available on the sign-in screen too, so installed clients can apply a waiting worker without first signing in.

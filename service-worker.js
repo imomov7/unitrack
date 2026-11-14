@@ -112,12 +112,19 @@ self.addEventListener('fetch', (event) => {
   if (SHELL_PATHS.has(url.pathname)) {
     event.respondWith((async () => {
       const cache = await caches.open(CACHE_NAME);
+      // Network-first avoids mixing a fresh HTML shell with stale app modules.
+      // Static-only offline fallback never includes account or academic records.
+      try {
+        const response = await fetch(request);
+        if (response.ok) {
+          try { await cache.put(new URL(url.pathname, url.origin).href, response.clone()); }
+          catch { /* Storage limits must not discard a fresh network response. */ }
+          return response;
+        }
+        if (response.status < 500) return response;
+      } catch { /* Offline: use the installed static shell. */ }
       const cached = await cache.match(request, { ignoreSearch: true });
-      const update = fetch(request).then((response) => {
-        if (response.ok) cache.put(new URL(url.pathname).href, response.clone());
-        return response;
-      });
-      return cached || update;
+      return cached || new Response('Acadely asset unavailable offline. Reconnect and reload.', { status: 503 });
     })());
   }
 });
