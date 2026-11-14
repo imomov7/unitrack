@@ -101,3 +101,9 @@ The existing own-account deletion Edge Function was deployed to Supabase on 2026
 - Static shell cache v10 includes the language and automation assets. No schema or authentication changes are required.
 
 Validation includes all automated tests, the existing form integration harness, English/Arabic rendering and a local disposable-data browser preview at 375×812, 390×844, and 430×932. Real iPhone/Android and authenticated multi-device flows still require physical-device and disposable-account verification.
+
+## Vercel production hosting
+
+The same static app supports `https://myacadely.vercel.app/` at the domain root and the existing GitHub Pages `/unitrack/` path. Import `imomov7/unitrack`, select Other, root `./`, no build/install command, and name the project `myacadely`. Manifest and service-worker URLs remain relative. Auth callbacks use an explicit list of production origins; unrecognized origins use the Vercel production root.
+
+Supabase Authentication → URL Configuration must include `https://myacadely.vercel.app/` in allowed redirect URLs, retaining the GitHub Pages URL for existing links. The account-deletion Edge Function allows the exact Vercel origin in addition to the existing origins; redeploy the function when updating this file. Existing browser-local data belongs to its original origin: export/import JSON to move local-only records between domains. Signed-in cloud data continues to use the same Supabase project.

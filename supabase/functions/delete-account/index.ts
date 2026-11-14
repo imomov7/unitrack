@@ -2,7 +2,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 function corsHeaders(request: Request) {
   const origin = request.headers.get('Origin') || '';
-  const allowed = origin === 'https://imomov7.github.io' || /^http:\/\/localhost(?::\d+)?$/.test(origin);
+  const allowed = ['https://imomov7.github.io', 'https://myacadely.vercel.app'].includes(origin) || /^http:\/\/localhost(?::\d+)?$/.test(origin);
   return {
     'Access-Control-Allow-Origin': allowed ? origin : 'https://imomov7.github.io',
     'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
