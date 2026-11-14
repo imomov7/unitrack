@@ -3,10 +3,10 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo', email: 'imomovabdullo009@gmail.com' });
-const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, academics };
-const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grade calculator', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', academics: 'University & semesters' };
+const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, courses: myCourses, history: academicHistory };
+const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
 const content = document.querySelector('.page-content');
 const toast = document.querySelector('#toast');
 const authScreen = document.querySelector('#auth-screen');
@@ -100,7 +100,7 @@ function defaultScale(maxGpa = 4) {
 }
 
 function defaults() {
-  return { profile: 'Student', studentProfile: { fullName: '', studentId: '', university: '', major: '', academicYear: '', semester: '', email: '', profilePicture: '' }, creatorProfile: { name: '', email: '' }, settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, scaleCustomized: false, gradeScale: defaultScale() }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [], events: [], semesters: [], degreeRequirements: [] };
+  return { profile: 'Student', studentProfile: { fullName: '', studentId: '', university: '', major: '', academicYear: '', semester: '', email: '', campus: '', profilePicture: '' }, creatorProfile: { name: '', email: '' }, settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, scaleCustomized: false, gradeScale: defaultScale() }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [], events: [], semesters: [], degreeRequirements: [] };
 }
 
 function sameScale(left, right) {
@@ -136,20 +136,19 @@ function load(storageKey = KEY) {
 }
 
 function save() {
+  if (accountUser) localChangeVersion += 1;
   let persisted = true;
   try {
     const storageKey = accountUser ? `acadely-workspace-cache-v1:${accountUser.id}` : KEY;
-    localStorage.setItem(storageKey, JSON.stringify(accountUser ? { data, revision: cloudRevision } : data));
+    localStorage.setItem(storageKey, JSON.stringify(accountUser ? { data, revision: cloudRevision, dirty: localChangeVersion > lastSyncedChangeVersion } : data));
   } catch {
     // Some mobile browsers and private/file browsing modes deny LocalStorage.
     // Keep the in-memory app usable even when persistence is unavailable.
     persisted = false;
   }
   render();
-  if (accountUser && cloudReady) {
-    localChangeVersion += 1;
-    scheduleCloudSync();
-  }
+  if (accountUser && cloudReady) scheduleCloudSync();
+  else if (accountUser) setCloudStatus(cloudConflict ? 'conflict' : 'failed');
   if (!persisted && !storageWarningShown) {
     storageWarningShown = true;
     msg('Your browser is blocking saved storage. Changes work in this session, but will not remain after closing the page.');
@@ -171,7 +170,7 @@ function msg(message) {
 // Object.hasOwn and Array.at are missing in older mobile Safari versions. Keep
 // startup independent of these newer helpers so one unsupported API cannot
 // prevent every control on the page from being wired up.
-function validRoute(route) { return Object.prototype.hasOwnProperty.call(views, route) ? route : null; }
+function validRoute(route) { if (route === 'academics') return 'profile'; return Object.prototype.hasOwnProperty.call(views, route) ? route : null; }
 function today() {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
@@ -206,19 +205,7 @@ function onboarding() {
   return card('Welcome to ACADELY', 'A simple place to organize courses, deadlines, grades, and study time.', `<ol class="setup-steps"><li><strong>1. Add your first course</strong><span>Start with a course name and its credit hours.</span>${button('Add a course', 'add', 'primary', 'data-kind="course"')}</li><li><strong>2. Add assignments and exams</strong><span>Give each item a due date so your dashboard and study plan can help.</span><a class="text-link" href="#assignments">Open assignments ↗</a></li><li><strong>3. Track your grades and classes</strong><span>Record marks, assessment weights, and your weekly timetable.</span><a class="text-link" href="#grades">Open grade calculator ↗</a></li></ol>`, '<a class="text-link" href="#settings">Set university details ↗</a>');
 }
 
-function dashboard() {
-  const pending = data.assignments.filter((item) => !item.done);
-  const completed = data.assignments.filter((item) => item.done);
-  const examsSoon = data.exams.filter((item) => item.date && item.date >= today()).sort((a, b) => a.date.localeCompare(b.date));
-  const deadlines = pending.filter((item) => item.due).sort((a, b) => a.due.localeCompare(b.due)).slice(0, 4);
-  const plans = makePlan().slice(0, 3);
-  const pct = data.assignments.length ? Math.round(completed.length / data.assignments.length * 100) : 0;
-  const gpaData = gpaSummary();
-  const day = DAYS[(new Date().getDay() + 6) % 7];
-  const classes = data.classes.filter((item) => AcadelyPlanning.classOccurs(item, today(), data.settings)).sort((a, b) => String(a.start).localeCompare(String(b.start)));
-  const greeting = new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening';
-  return `${pageHeader(`Good ${greeting}`, 'Your academic workspace, all in one place.', button('<span class="plus">+</span> Quick add', 'quick-add', 'primary'))}${onboarding()}<section class="stats-grid">${stat('Total assignments', data.assignments.length, 'Across all your courses', 'assignments')}${stat('Pending', pending.length, 'Keep your next deadline in sight', 'assignments')}${stat('Completed', completed.length, 'Your completed work', 'assignments')}${stat('Upcoming exams', examsSoon.length, 'Exams on your calendar', 'exams')}</section><section class="dashboard-grid">${card('Today’s classes', 'Your timetable for today', classes.length ? classes.map((item) => `<div class="data-row"><div><strong>${esc(item.start)} · ${esc(item.title)}</strong><small>${esc(courseName(item.courseId))} · ${esc(item.location || 'Location not set')}</small></div></div>`).join('') : empty('Your day is open', 'Add classes to your timetable to see them here.', 'class'), '<a class="text-link" href="#timetable">Timetable ↗</a>')}${card('Semester progress', 'Assignment completion', `<div class="progress-summary"><div class="progress-ring"><div class="ring-inner"><strong>${pct}<span>%</span></strong><small>completed</small></div></div><div class="progress-legend">${completed.length} complete · ${pending.length} remaining</div></div><div class="grade-placeholder"><span>${gpaData.value === null ? 'No GPA yet' : `${gpaData.estimated ? 'Estimated' : 'Final'} GPA ${gpaData.value.toFixed(2)} / ${Number(data.settings.maxGpa).toFixed(2)}`}</span><span>${gpaData.gradedCredits ? `${gpaData.gradedCredits} graded credits` : 'Enter a course grade to calculate GPA'}</span></div>`, '<a class="text-link" href="#overview">Overview ↗</a>')}${card('Smart study plan', 'Suggested focus for today', plans.length ? plans.map(planRow).join('') : empty('No study sessions suggested yet', 'Add an assignment or exam with a due date.', 'assignment'), '<a class="text-link" href="#planner">View plan ↗</a>')}${card('Upcoming deadlines', 'Your nearest assignments', deadlines.length ? deadlines.map((item) => `<div class="data-row"><div><strong>${esc(item.title)}</strong><small>${esc(courseName(item.courseId))} · ${dateLabel(item.due)}</small></div><span class="priority ${esc((item.priority || 'Medium').toLowerCase())}">${esc(item.priority || 'Medium')}</span></div>`).join('') : empty('No deadlines coming up', 'Add assignments and their due dates will appear here.', 'assignment'), '<a class="text-link" href="#assignments">Assignments ↗</a>')}${card('Upcoming exams', 'Next on your calendar', examsSoon.slice(0, 3).length ? examsSoon.slice(0, 3).map((item) => `<div class="data-row"><div><strong>${esc(item.title)}</strong><small>${esc(courseName(item.courseId))} · ${dateLabel(item.date)}</small></div><span class="days-badge">${daysUntil(item.date)}d</span></div>`).join('') : empty('No exams scheduled', 'Add an exam to see it on your dashboard.', 'exam'), '<a class="text-link" href="#exams">Exams ↗</a>')}${card('Quick access', 'Continue where you need to', `<div class="quick-links"><a class="button button-secondary" href="#gpa">GPA calculator</a><a class="button button-secondary" href="#grades">What-if grade</a><a class="button button-secondary" href="#planner">Study planner</a><a class="button button-secondary" href="#settings">Settings</a></div>`)}</section>`;
-}
+function dashboard() { return simpleDashboard(); }
 
 function assignmentMatches(item) {
   const overdue = !item.done && item.due && item.due < today();
@@ -233,12 +220,12 @@ function assignments() {
 
 function gradePage() {
   const courseOptions = data.courses.map((course) => `<option value="${esc(course.id)}">${esc(course.name)}</option>`).join('');
-  return `${pageHeader('Grade calculator', 'Track assessment weights and explore what-if outcomes.', button('Add assessment', 'add', 'primary', 'data-kind="assessment"'))}${data.courses.length ? `<section class="form-panel"><form id="whatif-form" class="inline-form"><label>Course<select name="courseId" required>${courseOptions}</select></label><label>Target final grade (%)<input name="target" type="number" min="0" max="100" step="any" value="90" required></label><label>Hypothetical average on remaining work (%)<input name="hypothetical" type="number" min="0" max="100" step="any" placeholder="Optional"></label><button class="button button-primary">Calculate</button></form><div id="whatif-result" class="result-box" aria-live="polite">Choose a course with assessment marks to calculate what you need.</div></section>` : card('Start with a course', 'Add a course before entering assessments or using what-if calculations.', empty('No courses yet', 'Create your first course to continue.', 'course'))}${card('Assessments', 'Marks are weighted using each assessment’s share of its course', data.assessments.length ? data.assessments.map((item) => `<div class="data-row"><div><strong>${esc(item.title)} · ${esc(courseName(item.courseId))}</strong><small>${item.score}/${item.max} marks · ${item.weight}% course weight</small></div><div class="row-actions"><button data-action="edit" data-kind="assessments" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="assessments" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No assessments yet', 'Add an assessment to track a course grade.', data.courses.length ? 'assessment' : 'course'))}`;
+  return `${pageHeader('Grades', 'See your marks and find out what you need next.', button('Add assessment', 'add', 'primary', 'data-kind="assessment"'))}${gradeSummaryStrip()}${data.courses.length ? `<details class="disclosure"><summary>What do I need to reach my target grade?</summary><section class="form-panel"><form id="whatif-form" class="inline-form"><label>Course<select name="courseId" required>${courseOptions}</select></label><label>Target final grade (%)<input name="target" type="number" min="0" max="100" step="any" value="90" required></label><label>Hypothetical average on remaining work (%)<input name="hypothetical" type="number" min="0" max="100" step="any" placeholder="Optional"></label><button class="button button-primary">Calculate</button></form><div id="whatif-result" class="result-box" aria-live="polite">Choose a course with assessment marks to calculate what you need.</div></section></details>` : card('Start with a course', 'Add a course before entering assessments or using what-if calculations.', empty('No courses yet', 'Create your first course to continue.', 'course'))}${card('Assessments', 'Marks are weighted using each assessment’s share of its course', data.assessments.length ? data.assessments.map((item) => `<div class="data-row"><div><strong>${esc(item.title)} · ${esc(courseName(item.courseId))}</strong><small>${item.score}/${item.max} marks · ${item.weight}% course weight</small></div><div class="row-actions"><button data-action="edit" data-kind="assessments" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="assessments" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No assessments yet', 'Add an assessment to track a course grade.', data.courses.length ? 'assessment' : 'course'))}`;
 }
 
 function timetable() {
   const rows = data.classes.slice().sort((a, b) => DAYS.indexOf(a.day) - DAYS.indexOf(b.day) || String(a.start).localeCompare(String(b.start)));
-  return `${pageHeader('Timetable', 'Your weekly class schedule.', addButton('Add class', 'class'))}${!data.settings.start || !data.settings.end ? '<p class="helper-text">Set semester dates in <a class="text-link" href="#academics">University & semesters</a> to limit recurring classes to your semester.</p>' : ''}${card('Weekly classes', 'Classes are ordered by weekday and start time', rows.length ? rows.map((item) => `<div class="data-row"><div><strong>${esc((item.days || [item.day]).join(", "))} · ${esc(item.title)}</strong><small>${esc(item.start)}–${esc(item.end)} · ${esc(courseName(item.courseId))} · ${esc(item.location || 'Location not set')}</small></div><div class="row-actions"><button data-action="edit" data-kind="classes" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="classes" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No classes scheduled', 'Add classes to see your weekly timetable.', 'class'))}`;
+  return `${pageHeader('Timetable', 'Your weekly class schedule.', addButton('Add class', 'class'))}${!data.settings.start || !data.settings.end ? '<p class="helper-text">Set semester dates in <a class="text-link" href="#calendar">Calendar</a> to limit recurring classes to your semester.</p>' : ''}${card('Weekly classes', 'Classes are ordered by weekday and start time', rows.length ? rows.map((item) => `<div class="data-row"><div><strong>${esc((item.days || [item.day]).join(", "))} · ${esc(item.title)}</strong><small>${esc(item.start)}–${esc(item.end)} · ${esc(courseName(item.courseId))} · ${esc(item.location || 'Location not set')}</small></div><div class="row-actions"><button data-action="edit" data-kind="classes" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="classes" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No classes scheduled', 'Add classes to see your weekly timetable.', 'class'))}`;
 }
 
 function navRows(items, kind) {
@@ -262,12 +249,12 @@ function gpa() {
   const result = gpaSummary();
   const title = result.value === null ? '—' : result.value.toFixed(2);
   const status = result.value === null ? 'Enter a grade to calculate GPA' : `${result.estimated ? 'Estimated current GPA' : 'Final GPA'} · ${Number(data.settings.maxGpa).toFixed(2)} point scale`;
-  return `${pageHeader('GPA calculator', 'Add courses, enter a final grade or track assessments, and see your credit-weighted GPA.', addButton('Add course', 'course'))}<section class="stats-grid">${stat('Total courses', data.courses.length, 'Configured courses')}${stat('Graded credits', result.gradedCredits.toLocaleString(), 'Only valid graded credits count')}${stat(result.estimated ? 'Estimated GPA' : 'Current GPA', title, status)}${stat('Maximum scale', Number(data.settings.maxGpa).toFixed(2), 'Configured in university settings')}</section>${card('Your courses', 'Each course is counted once. Choose a final grade or assessment tracking.', data.courses.length ? `<div class="gpa-course-list">${data.courses.map((course) => gpaCourseRow(course, result)).join('')}</div>` : empty('No courses yet', 'Add your first course to get started.', 'course'))}${card('How GPA works', 'Transparent, credit-weighted calculation', `<p class="helper-text">GPA = total of (course GPA points × course credits) ÷ total graded course credits. Ungraded courses and courses with zero or invalid credits are not included. Assessment grades show an estimate until the full course weight is entered; missing work may change the final result.</p><a class="text-link" href="#settings">Review your grade scale ↗</a>`)}`;
+  return `${pageHeader('Semester GPA', 'Record final grades or calculate them from weighted assessments.')}${gradeSummaryStrip()}${card('Your courses', 'Each course is counted once. Choose a final grade or assessment tracking.', data.courses.length ? `<div class="gpa-course-list">${data.courses.map((course) => gpaCourseRow(course, result)).join('')}</div>` : empty('No courses yet', 'Add your first course to get started.', 'course'))}<details class="disclosure"><summary>How is GPA calculated?</summary>${card('How GPA works', 'Transparent, credit-weighted calculation', `<p class="helper-text">GPA = total of (course GPA points × course credits) ÷ total graded course credits. Ungraded courses and courses with zero or invalid credits are not included. Assessment grades show an estimate until the full course weight is entered; missing work may change the final result.</p><a class="text-link" href="#settings">Review your grade scale ↗</a>`)}</details>`;
 }
 
 function settings() {
   const setting = data.settings;
-  return `${pageHeader('Settings', 'Configure your university, semester, grade boundaries, and study availability.')}${card('University & grading', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><label>University name<input name="university" value="${esc(setting.university)}" maxlength="120" placeholder="e.g. University name"></label><label>Semester name<input name="semester" value="${esc(setting.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label><div class="two-fields"><label>Semester starts<input name="start" type="date" value="${esc(setting.start)}"></label><label>Semester ends<input name="end" type="date" value="${esc(setting.end)}"></label></div><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', accountUser ? 'Private cloud account and local cache' : 'Local data storage', `<p class="helper-text">${accountUser ? 'Your workspace is saved in your account and cached on this device for offline use. Export a JSON backup before importing data.' : 'ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. Export a JSON backup before importing data.'}</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${accountCard()}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
+  return `${pageHeader('Settings', 'Your preferences, grading scale, and account.')}${card('Grading & study time', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', accountUser ? 'Private cloud account and local cache' : 'Local data storage', `<p class="helper-text">${accountUser ? 'Your workspace is saved in your account and cached on this device for offline use. Export a JSON backup before importing data.' : 'ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. Export a JSON backup before importing data.'}</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${accountCard()}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
 }
 
 function accountCard() {
@@ -340,7 +327,7 @@ function cloudCacheKey(userId) { return `acadely-workspace-cache-v1:${userId}`; 
 
 function persistCloudCache() {
   if (!accountUser) return;
-  try { localStorage.setItem(cloudCacheKey(accountUser.id), JSON.stringify({ data, revision: cloudRevision })); } catch { /* Cloud storage remains authoritative when local storage is unavailable. */ }
+  try { localStorage.setItem(cloudCacheKey(accountUser.id), JSON.stringify({ data, revision: cloudRevision, dirty: localChangeVersion > lastSyncedChangeVersion })); } catch { /* Cloud storage remains authoritative when local storage is unavailable. */ }
 }
 
 function localRecordCounts(snapshot) {
@@ -387,8 +374,8 @@ function mergedAccountStudentProfile(user, profile, currentProfile = data.studen
   const defaultsProfile = defaults().studentProfile;
   const savedDetails = profile?.student_data && typeof profile.student_data === 'object' && !Array.isArray(profile.student_data) ? profile.student_data : {};
   const merged = { ...defaultsProfile, ...currentProfile };
-  for (const key of ['studentId', 'university', 'major', 'academicYear', 'semester', 'profilePicture']) {
-    if (String(savedDetails[key] || '').trim()) merged[key] = savedDetails[key];
+  for (const key of ['studentId', 'university', 'campus', 'major', 'academicYear', 'semester', 'profilePicture']) {
+    if (Object.prototype.hasOwnProperty.call(savedDetails,key) && typeof savedDetails[key] === 'string') merged[key] = savedDetails[key];
   }
   merged.fullName = String(profile?.full_name || '').trim() || String(currentProfile?.fullName || '').trim() || String(user.user_metadata?.full_name || '').trim();
   merged.email = String(user.email || profile?.email || '').trim();
@@ -461,6 +448,19 @@ async function activateAccount(user) {
     }
     accountUser = withProfileIdentity(user, profileRecord);
     const workspace = await window.AcadelyCloudService.loadWorkspace();
+    let pendingCache=null;
+    try { pendingCache=JSON.parse(localStorage.getItem(cloudCacheKey(user.id)) || 'null'); } catch { /* Ignore an invalid cache. */ }
+    if (pendingCache?.dirty && pendingCache.data) {
+      data=validateImport(pendingCache.data);
+      cloudRevision=Number(pendingCache.revision)||0;
+      localChangeVersion=1;lastSyncedChangeVersion=0;
+      cloudConflict=(Number(workspace?.revision)||0)!==cloudRevision;
+      cloudReady=!cloudConflict;
+      showAcadelyApp();render();attachWorkspaceRealtime(user.id);
+      if(cloudConflict)setCloudStatus('conflict');else scheduleCloudSync();
+      activatingAccountId=null;
+      return;
+    }
     let cloudData = workspace ? validateImport(workspace.data) : defaults();
     cloudRevision = Number(workspace?.revision) || 0;
     const migrationChoiceKey = `acadely-migration-choice-v1:${user.id}`;
@@ -504,7 +504,7 @@ async function activateAccount(user) {
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(cloudCacheKey(user.id)) || 'null'); } catch { /* Ignore a damaged account cache. */ }
     if (cached?.data) {
-      try { data = validateImport(cached.data); cloudRevision = Number(cached.revision) || 0; showAcadelyApp(); render(); }
+      try { data = validateImport(cached.data); cloudRevision = Number(cached.revision) || 0; localChangeVersion=cached.dirty?1:0;lastSyncedChangeVersion=0;showAcadelyApp(); render(); }
       catch { accountUser = null; activatingAccountId = null; showAuth('login', 'Acadely could not read this account’s saved workspace. Check your connection and try again.'); return; }
       setCloudStatus('failed', 'Showing the last saved copy on this device. Cloud sync is unavailable; changes stay local until connection returns.');
     } else {
@@ -519,7 +519,7 @@ async function activateAccount(user) {
 
 async function onRemoteWorkspaceChange(payload) {
   const remoteRevision = Number(payload?.new?.revision) || 0;
-  if (!accountUser || remoteRevision <= cloudRevision) return;
+  if (!accountUser || (payload?.new?.user_id && payload.new.user_id !== accountUser.id) || remoteRevision <= cloudRevision) return;
   if (cloudWriteSnapshot && stableJson(payload?.new?.data) === stableJson(cloudWriteSnapshot)) {
     cloudRevision = remoteRevision;
     lastSyncedChangeVersion = Math.max(lastSyncedChangeVersion, cloudWriteVersion);
@@ -588,12 +588,14 @@ function scheduleCloudSync() {
 
 async function flushCloudSync() {
   if (!accountUser || !cloudReady || cloudConflict || localChangeVersion <= lastSyncedChangeVersion) return;
+  const userId=accountUser.id;
   const version = localChangeVersion;
   const snapshot = JSON.parse(JSON.stringify(data));
   cloudWriteSnapshot = snapshot;
   cloudWriteVersion = version;
   try {
     const result = await window.AcadelyCloudService.saveWorkspace(snapshot, cloudRevision);
+    if(accountUser?.id!==userId)return;
     cloudRevision = Number(result?.revision) || cloudRevision + 1;
     lastSyncedChangeVersion = version;
     cloudWriteSnapshot = null;
@@ -606,6 +608,7 @@ async function flushCloudSync() {
     setCloudStatus('synced');
     if (version !== localChangeVersion) scheduleCloudSync();
   } catch (error) {
+    if(accountUser?.id!==userId)return;
     cloudWriteSnapshot = null;
     const conflict = error.code === '40001' || /WORKSPACE_CONFLICT|revision/i.test(error.message || '');
     cloudConflict = conflict;
@@ -725,9 +728,9 @@ async function handleAuthSubmit(event) {
   try {
     if (mode === 'login') {
       cloudRememberSession = fields.get('remember') === 'on';
-      const { error } = await window.AcadelyCloudService.signIn({ email, password: values.password, remember: cloudRememberSession });
+      const { data: loginResult, error } = await window.AcadelyCloudService.signIn({ email, password: values.password, remember: cloudRememberSession });
       if (error) throw error;
-      showAuth('loading');
+      if (loginResult?.user) await activateAccount(loginResult.user);
     } else if (mode === 'signup') {
       if (String(values.password) !== String(values.confirmPassword)) throw new Error('The passwords do not match.');
       const fullName = String(values.fullName || '').trim();
@@ -756,6 +759,7 @@ async function handleAuthSubmit(event) {
       return;
     }
   } catch (error) {
+    accountBusy = false;
     showAuth(mode, error.message || 'Acadely could not complete that request. Please try again.');
   } finally {
     accountBusy = false;
@@ -887,18 +891,12 @@ function syncProfileDisplay() {
   const name = String(data.studentProfile.fullName || accountUser?.user_metadata?.full_name || '').trim() || 'Student';
   document.querySelector('.profile-copy strong').textContent = name;
   document.querySelector('.profile-copy small').textContent = accountUser ? `Account · ${accountUser.email || ''}` : 'Local profile · not verified';
-  document.querySelectorAll('.avatar, .top-avatar').forEach((element) => setAvatarContent(element, name, data.studentProfile.profilePicture));
+  document.querySelectorAll('.profile-button .avatar, .top-avatar, #student-profile-form .profile-avatar').forEach((element) => setAvatarContent(element, name, data.studentProfile.profilePicture));
   document.querySelector('.top-avatar').title = name;
   document.querySelector('.top-avatar').setAttribute('aria-label', `${name}${accountUser ? ', Acadely account' : ', local profile'}`);
 }
 
-function profile() {
-  const item = data.studentProfile;
-  const syncHelp = accountUser
-    ? (profileCloudReady ? 'Your name and email come from your signed-in Acadely account. Profile details sync to your account across devices.' : 'Your academic workspace is connected. Run the updated supabase/schema.sql once in Supabase to enable account profile syncing.')
-    : 'Your profile is stored in this browser. Sign in to sync profile details across devices.';
-  return `${pageHeader('Student profile', accountUser ? 'Your details sync with your Acadely account across devices.' : 'Your private academic details, saved on this browser.')}${card('Personal details', syncHelp, `<div class="profile-preview"><span class="avatar profile-avatar">${esc(initials(item.fullName))}</span><div><strong>${esc(item.fullName || 'Your initials')}</strong><small>${item.profilePicture ? 'Profile picture set.' : 'Your initials are shown until you add a picture.'}</small></div></div><form id="student-profile-form" class="settings-form"><label>Full name<input name="fullName" value="${esc(item.fullName)}" maxlength="120" autocomplete="name" placeholder="Your name" required></label><label>Profile picture <span class="helper-inline">Optional</span><input name="profilePictureFile" type="file" accept="image/png,image/jpeg,image/webp"><small>Choose a JPG, PNG, or WebP image. It will be resized before saving.</small>${item.profilePicture ? '<button class="row-action-button" type="button" data-action="profile-picture-remove">Remove picture</button>' : ''}</label><label>Student ID / University UID <span class="helper-inline">Optional</span><input name="studentId" value="${esc(item.studentId)}" maxlength="80" autocomplete="off" placeholder="Optional"></label><label>University name<input name="university" value="${esc(item.university || data.settings.university)}" maxlength="120" placeholder="University"></label><label>Major / degree program<input name="major" value="${esc(item.major)}" maxlength="120" placeholder="e.g. Computer Science"></label><div class="two-fields"><label>Academic year<input name="academicYear" value="${esc(item.academicYear)}" maxlength="40" placeholder="e.g. Second year"></label><label>Current semester<input name="semester" value="${esc(item.semester || data.settings.semester)}" maxlength="80" placeholder="e.g. Fall semester"></label></div><label>Email address${accountUser ? ' <span class="helper-inline">From your account</span>' : ' <span class="helper-inline">Optional</span>'}<input name="email" type="email" value="${esc(accountUser?.email || item.email)}" maxlength="254" autocomplete="email" placeholder="you@example.edu" ${accountUser ? 'readonly' : ''}></label>${accountUser ? '<p class="helper-text">Change your sign-in email in Settings → Acadely account.</p>' : ''}<div><button class="button button-primary">Save profile</button></div></form>`)}`;
-}
+function profile() { return simpleProfile(); }
 
 function about() {
   return `${pageHeader('About Acadely', 'Your academic journey, made clearer.')}`+
@@ -1042,7 +1040,7 @@ function calendar() {
   const view = calendarMode === 'month' ? monthGrid() : calendarMode === 'week' ? weekGrid(mondayOf(calendarCursor)) : `<div class="calendar-day-view">${calendarEvents(from, to).length ? calendarEvents(from, to).map((item) => `<div class="calendar-day-event">${calendarEventButton(item)}</div>`).join('') : `<div class="empty-state compact"><button type="button" class="empty-icon empty-add" data-action="calendar-add" aria-label="Add calendar event">＋</button><strong>A clear day</strong><span>There are no events scheduled for this date.</span></div>`}</div>`;
   const toolbar = `<div class="calendar-toolbar"><div class="calendar-date-controls"><button type="button" class="calendar-arrow" data-action="calendar-shift" data-direction="-1" aria-label="Previous ${calendarMode}">‹</button><strong>${esc(calendarTitle(from, to))}</strong><button type="button" class="calendar-arrow" data-action="calendar-shift" data-direction="1" aria-label="Next ${calendarMode}">›</button><button type="button" class="button button-secondary calendar-today" data-action="calendar-today">Today</button></div><div class="calendar-toolbar-actions"><div class="calendar-view-switch" role="group" aria-label="Calendar view">${['month', 'week', 'day'].map((mode) => `<button type="button" data-action="calendar-view" data-view="${mode}" aria-pressed="${calendarMode === mode}" class="${calendarMode === mode ? 'active' : ''}">${mode[0].toUpperCase()}${mode.slice(1)}</button>`).join('')}</div>${button('＋ Add event', 'calendar-add', 'primary')}</div></div>`;
   const legend = `<div class="calendar-legend">${[['assignment','Assignments'],['exam','Exams'],['class','Classes'],['personal','Personal events'],['study','Study'],['deadline','Academic dates']].map(([kind,label]) => `<span><i class="event-${kind}"></i>${label}</span>`).join('')}</div>`;
-  return `${pageHeader('Academic calendar', 'See coursework, exams, classes, and personal events together.')}${card('Your calendar', 'Select an event to see details. Existing academic records appear here automatically.', `${toolbar}${legend}${view}`)}${card(`Events · ${dateLabel(selected)}`, 'Everything scheduled on the selected date.', `<div class="calendar-agenda">${calendarAgenda(selected)}</div>`)}`;
+  return `${pageHeader('Academic calendar', 'See coursework, exams, classes, and personal events together.')}${semesterCalendarControls()}${card('Your calendar', 'Select an event to see details. Existing academic records appear here automatically.', `${toolbar}${legend}${view}`)}${card(`Events · ${dateLabel(selected)}`, 'Everything scheduled on the selected date.', `<div class="calendar-agenda">${calendarAgenda(selected)}</div>`)}`;
 }
 
 function showCalendarEventForm(record = null) {
@@ -1084,16 +1082,16 @@ function showCalendarEventDetails(kind, id, date) {
 }
 
 function render() {
-  currentPage = validRoute(location.hash.slice(1)) || currentPage || 'dashboard';
+  currentPage = validRoute(currentPage) || 'dashboard';
   document.querySelectorAll('.nav-item[data-page]').forEach((anchor) => {
-    const active = anchor.dataset.page === currentPage;
+    const active = anchor.dataset.page === currentPage || (anchor.dataset.page === 'grades' && ['gpa','history','overview'].includes(currentPage)) || (anchor.dataset.page === 'calendar' && ['timetable','exams'].includes(currentPage));
     anchor.classList.toggle('active', active);
     if (active) anchor.setAttribute('aria-current', 'page'); else anchor.removeAttribute('aria-current');
   });
   const count = document.querySelector('.nav-count');
   if (count) count.textContent = data.assignments.filter((item) => !item.done).length;
   document.querySelector('.breadcrumb strong').textContent = labels[currentPage] || 'Dashboard';
-  content.innerHTML = views[currentPage]();
+  content.innerHTML = contextNavigation(currentPage) + views[currentPage]();
   bindPage();
   syncProfileDisplay();
 }
@@ -1103,7 +1101,7 @@ function bindPage() {
   document.querySelector('#whatif-form')?.addEventListener('submit', calculateWhatIf);
   document.querySelectorAll('.final-grade-form').forEach((form) => form.addEventListener('submit', saveFinalGrade));
   document.querySelector('#student-profile-form')?.addEventListener('submit', saveStudentProfile);
-  if (currentPage === 'academics') bindAcademics();
+  bindSimplifiedPages();
 }
 
 function resizeProfilePicture(file) {
@@ -1144,12 +1142,15 @@ async function saveStudentProfile(event) {
     fullName: String(fields.get('fullName') || '').trim(),
     studentId: String(fields.get('studentId') || '').trim(),
     university: String(fields.get('university') || '').trim(),
+    campus: String(fields.get('campus') || '').trim(),
     major: String(fields.get('major') || '').trim(),
-    academicYear: String(fields.get('academicYear') || '').trim(),
-    semester: String(fields.get('semester') || '').trim(),
+    academicYear: fields.has('academicYear') ? String(fields.get('academicYear') || '').trim() : data.studentProfile.academicYear,
+    semester: fields.has('semester') ? String(fields.get('semester') || '').trim() : data.studentProfile.semester,
     email: String(accountUser?.email || fields.get('email') || '').trim(),
     profilePicture,
   };
+  data.settings.university = data.studentProfile.university;
+  data.settings.campus = data.studentProfile.campus;
   save();
   if (accountUser) {
     await syncStudentProfileToAccount('Student profile saved and synced across your devices.');
@@ -1176,7 +1177,7 @@ async function syncStudentProfileToAccount(successMessage = 'Student profile syn
 function formFields(kind, record = {}) {
   const courses = selectCourses(record.courseId || '', kind === 'assessment');
   const fields = {
-    course: `<label>Course code<input name="code" value="${esc(record.code || '')}" maxlength="30" placeholder="e.g. GCIS-123"></label><label>Course name<input name="name" value="${esc(record.name || '')}" required maxlength="100" autocomplete="off"></label><label>Credit hours<input name="credits" type="number" min="0.1" max="100" step="0.1" value="${record.credits ?? 3}" required></label>`,
+    course: `<label>Course code<input name="code" value="${esc(record.code || '')}" maxlength="30" placeholder="e.g. GCIS-123"></label><label>Course name<input name="name" value="${esc(record.name || '')}" required maxlength="100" autocomplete="off"></label><label>Credit hours<input name="credits" type="number" min="0.1" max="100" step="0.1" value="${record.credits ?? 3}" required></label><label>Professor (optional)<input name="professor" value="${esc(record.professor || '')}" maxlength="120"></label>`,
     assignment: `<label>Title<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Description<input name="description" value="${esc(record.description || '')}" maxlength="240"></label><label>Due date<input name="due" type="date" value="${esc(record.due || '')}"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="${record.studyHours ?? 2}" required></label><label>Priority<select name="priority">${['Low', 'Medium', 'High'].map((value) => `<option ${record.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`,
     assessment: `<label>Assessment name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId" required>${courses}</select></label><div class="two-fields"><label>Score<input name="score" type="number" min="0" step="any" value="${record.score ?? ''}" required></label><label>Maximum marks<input name="max" type="number" min="0.01" step="any" value="${record.max ?? 100}" required></label></div><label>Course weight (%)<input name="weight" type="number" min="0.01" max="100" step="any" value="${record.weight ?? ''}" required></label>`,
     class: `<label>Course<select name="courseId" required>${courses}</select></label><fieldset class="class-days"><legend>Class days</legend>${DAYS.map(day => `<label><input type="checkbox" name="days" value="${day}" ${(record.days || [record.day || 'Monday']).includes(day) ? 'checked' : ''}>${day.slice(0,3)}</label>`).join('')}</fieldset><div class="two-fields"><label>Start<input type="time" name="start" value="${esc(record.start || '')}" required></label><label>End<input type="time" name="end" value="${esc(record.end || '')}" required></label></div><label>Room or location<input name="location" value="${esc(record.location || '')}" maxlength="100"></label>`,
@@ -1189,7 +1190,7 @@ function openRecordDialog(kind, record = null) {
   if (!['course', 'assignment', 'assessment', 'class', 'exam'].includes(kind)) return;
   if (['assignment', 'assessment', 'class', 'exam'].includes(kind) && !data.courses.length) {
     msg('Add a course first. Opening the course form now.');
-    openRecordDialog('course');
+    openCoursePicker();
     return;
   }
   const editing = Boolean(record?.id);
@@ -1209,7 +1210,7 @@ function openRecordDialog(kind, record = null) {
     if (error) { msg(error); return; }
     const saved = { ...(record || {}), ...values };
     if (kind === 'class' && data.classes.some(c => c.id !== record?.id && c.courseId === values.courseId && c.start === values.start && c.end === values.end && (c.days || [c.day]).slice().sort().join() === values.days.slice().sort().join())) return msg('This class schedule already exists.');
-    if (kind === 'course') { saved.name = values.name.trim(); saved.credits = Number(values.credits); if (!editing) { saved.gradeMode = 'assessments'; saved.finalGrade = null; } }
+    if (kind === 'course') { saved.name = values.name.trim(); saved.code = String(values.code || '').trim().toUpperCase(); if(saved.code && data.courses.some(c => c.id !== record?.id && AcadelyPlanning.code(c.code) === AcadelyPlanning.code(saved.code))) return msg('This course is already in your semester.'); saved.credits = Number(values.credits); if (!editing) { saved.gradeMode = 'assessments'; saved.finalGrade = null; } }
     if (kind === 'assessment') { saved.score = Number(values.score); saved.max = Number(values.max); saved.weight = Number(values.weight); }
     if (kind === 'assignment') saved.studyHours = Number(values.studyHours);
     if (!editing) { saved.id = makeId(); data[{ course: 'courses', assignment: 'assignments', assessment: 'assessments', class: 'classes', exam: 'exams' }[kind]].push(saved); }
@@ -1241,6 +1242,7 @@ function validateRecord(kind, values, exceptId = '') {
 }
 
 function addRecord(kind, courseId = '') {
+  if (kind === 'course') return openCoursePicker();
   openRecordDialog(kind, kind === 'assessment' && courseId ? { courseId } : null);
 }
 
@@ -1283,7 +1285,7 @@ function saveSettings(event) {
   const previous = data.settings;
   const maxGpa = Number(fields.get('maxGpa'));
   const availableHours = Number(fields.get('availableHours'));
-  const start = fields.get('start'), end = fields.get('end');
+  const start = previous.start, end = previous.end;
   if (!Number.isFinite(maxGpa) || maxGpa < 1 || maxGpa > 20) return msg('Maximum GPA must be between 1 and 20.');
   if (!Number.isFinite(availableHours) || availableHours < 0.25 || availableHours > 16) return msg('Daily study time must be between 0.25 and 16 hours.');
   if ((start && !validDate(start)) || (end && !validDate(end)) || (start && end && start > end)) return msg('Enter valid semester dates and make sure the end date follows the start date.');
@@ -1292,7 +1294,7 @@ function saveSettings(event) {
   const finalScale = untouchedBuiltIn && maxGpa !== Number(previous.maxGpa) ? defaultScale(maxGpa) : scale;
   const scaleValidation = UniTrackMath.validateGradeScale(finalScale, maxGpa);
   if (!scaleValidation.valid) return msg(scaleValidation.reason);
-  data.settings = { ...previous, university: String(fields.get('university') || '').trim(), semester: String(fields.get('semester') || '').trim(), start, end, maxGpa, availableHours, gradeScale: scaleValidation.scale, scaleCustomized: !sameScale(scaleValidation.scale, defaultScale(maxGpa)) };
+  data.settings = { ...previous, start, end, maxGpa, availableHours, gradeScale: scaleValidation.scale, scaleCustomized: !sameScale(scaleValidation.scale, defaultScale(maxGpa)) };
   save(); msg('University and grading settings saved.');
 }
 
@@ -1475,7 +1477,7 @@ document.addEventListener('click', (event) => {
   const anchor = event.target.closest('a[href^="#"]');
   if (anchor) {
     const route = validRoute(anchor.getAttribute('href').slice(1));
-    if (route) { currentPage = route; toggleMenu(false); render(); }
+    if (route) { event.preventDefault(); navigateTo(route); }
   }
   const control = event.target.closest('[data-action]');
   if (!control) return;
@@ -1535,6 +1537,7 @@ document.addEventListener('click', (event) => {
   else if (action === 'cloud-load-remote') loadCloudCopy();
   else if (action === 'refresh-plan') render();
   else if (action.startsWith('academic-')) handleAcademicAction(action, control);
+  else if (action.startsWith('ux-')) handleSimpleAction(action, control);
 });
 
 function addScaleRow() {
@@ -1566,8 +1569,8 @@ document.addEventListener('input', (event) => {
   render();
   const field = document.querySelector('#assignment-search'); field.focus(); field.setSelectionRange(cursor, cursor);
 });
-window.addEventListener('hashchange', () => { currentPage = validRoute(location.hash.slice(1)) || 'dashboard'; toggleMenu(false); render(); });
-window.addEventListener('storage', (event) => { if (event.key === KEY) { data = load(); render(); msg('Updated from another ACADELY tab.'); } });
+window.addEventListener('hashchange', () => { const next = validRoute(location.hash.slice(1)) || 'dashboard'; if (next === currentPage) return; currentPage = next; toggleMenu(false); render(); });
+window.addEventListener('storage', (event) => { if (!accountUser && event.key === KEY) { data = load(); render(); msg('Updated from another ACADELY tab.'); } });
 document.querySelector('#menu-toggle').addEventListener('click', () => toggleMenu());
 document.querySelector('#mobile-overlay').addEventListener('click', () => toggleMenu(false));
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') toggleMenu(false); });
