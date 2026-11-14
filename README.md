@@ -83,3 +83,11 @@ Adding a course opens a search dialog with explicitly limited catalogue coverage
 Fixes include duplicate route renders that could steal input focus, disabled sign-in retry buttons, signed-in account isolation from legacy local-storage events, and preservation of unsynced account edits in account-specific caches. Dirty caches are restored on login, and differing cloud revisions require explicit conflict resolution. Completed semesters and all existing calculations are preserved.
 
 Run all automated checks with `node --test tests/*.test.*`. Browser checks use a separate localhost fixture with disposable academic data; live production data is never modified by these tests.
+
+## Reliability update (1.4.1)
+
+Profile now offers searchable major suggestions with manual entry. University search uses the existing 10,254-entry community directory, with explicit coverage limits. Course search accepts code punctuation variants and multiple keywords; manual credits must be supplied by the student. Grades & GPA includes a direct GPA Calculator action and separate current-semester and completed-semester cumulative results.
+
+Startup HTML displays loading/failure guidance instead of obsolete zero-value statistics. Directory loading has a timeout and retry fallback. Profile saves prevent duplicate submissions and stale background responses overwriting edits; account identity is checked before profile mutations. The local key `unitrack-data-v1` and existing academic schemas are unchanged. Cache v9 includes startup and major assets.
+
+The existing own-account deletion Edge Function was deployed to Supabase on 2026-11-14, with gateway JWT verification retained. OPTIONS and unauthenticated rejection are checked; actual destructive deletion and authenticated cross-device flows require a disposable signed-in test account.
