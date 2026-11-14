@@ -127,3 +127,10 @@ English, العربية and Русский buttons are available in a compact to
 ## Compact language menu (1.5.3)
 
 The separate language toolbar has been removed. A translation icon beside the existing theme control opens English / العربية / Русский. Account screens place the same compact controls beside the logo. Selection persists and shares the Settings preference; outside click and Escape dismiss the menu, with keyboard focus and arrow-key support. No extra page/header layer or toolbar spacing is retained.
+
+### 1.5.4 — targeted data and presentation fixes
+- Existing 10,253-university bundled directory retained; search additionally matches derived abbreviations/domain labels and deduplicates suggestions. Directory failure retains manual entry. Source and license remain in `assets/data/README.md`.
+- Three RIT titles and the refresh importer corrected against the official curriculum. No other catalogue records changed.
+- About retains creator/contact content, with “Acadely contact — not configured yet” until a dedicated public business email is set in `ACADELY_CONTACT_EMAIL` in `js/app.js`. No personal email is bundled as public contact. Signed-in account emails remain private account information.
+- Semester / known RIT spelling correction and short course-label capitalization are presentation-only helpers. Saved values, editable inputs, university matching, history, GPA and sync continue using original data. Short one-character course names carry a review hint; their real identity is not guessed.
+- Static cache version 15 and asset revision updated to deliver the fixes. No storage migration, data reset or database changes.
