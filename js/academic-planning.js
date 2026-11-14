@@ -33,10 +33,12 @@
   }
   function recommend(requirements, semesters, currentCourses, plannedCodes) {
     const passed = new Set(semesters.filter(s=>s.status==='completed').flatMap(s=>(s.courses||[]).filter(c=>c.completed===true).map(c=>code(c.code))));
+    const completedRecords = semesters.filter(s=>s.status==='completed').flatMap(s=>(s.courses||[]).filter(c=>c.completed===true).map(c=>({...c,maxGpa:s.maxGpa})));
+    const prerequisiteMet = (r,p) => passed.has(code(p)) && (r.minimumPrerequisitePoints==null || r.minimumPrerequisitePoints==='' || completedRecords.some(c=>code(c.code)===code(p) && Number(c.maxGpa)===Number(r.maxGpa) && c.points!=='' && c.points!=null && Number(c.points)>=Number(r.minimumPrerequisitePoints)));
     const inProgress = new Set(currentCourses.map(c=>code(c.code)).filter(Boolean));
     const planned = new Set(plannedCodes.map(code));
     return requirements.filter(r=>r.code && !passed.has(code(r.code)) && !inProgress.has(code(r.code)) && !planned.has(code(r.code)))
-      .map(r=>({ ...r, eligible:r.prerequisitesVerified===true && (r.prerequisites||[]).every(p=>passed.has(code(p))), reason:r.prerequisitesVerified!==true ? 'On your degree list. Confirm prerequisites with your adviser.' : (r.prerequisites||[]).every(p=>passed.has(code(p))) ? ((r.prerequisites||[]).length ? 'On your degree list; all listed prerequisites completed.' : 'On your degree list; verified with no prerequisites.') : 'On your degree list; complete the listed prerequisites first.' }));
+      .map(r=>({ ...r, eligible:r.prerequisitesVerified===true && (r.prerequisites||[]).every(p=>prerequisiteMet(r,p)), reason:r.prerequisitesVerified!==true ? 'On your degree list. Confirm prerequisites with your adviser.' : (r.prerequisites||[]).every(p=>prerequisiteMet(r,p)) ? ((r.prerequisites||[]).length ? 'On your degree list; all listed prerequisites and recorded grade minima met.' : 'On your degree list; verified with no prerequisites.') : 'On your degree list; complete the listed prerequisites first.' }));
   }
   root.AcadelyPlanning = {searchUniversities,classOccurs,semesterGpa,cumulativeGpa,recommend,code};
   if (typeof module !== 'undefined' && module.exports) module.exports = root.AcadelyPlanning;

@@ -1381,6 +1381,7 @@ function validateImport(imported) {
     }
   }
   for (const requirement of merged.degreeRequirements) if (typeof requirement.code !== 'string' || !requirement.code.trim() || typeof requirement.name !== 'string' || !requirement.name.trim() || !Number.isFinite(Number(requirement.credits)) || Number(requirement.credits) <= 0 || !Array.isArray(requirement.prerequisites) || requirement.prerequisites.some(p => typeof p !== 'string')) throw new Error('A degree requirement is invalid.');
+  for (const requirement of merged.degreeRequirements) if (requirement.minimumPrerequisitePoints != null && requirement.minimumPrerequisitePoints !== '' && (!Number.isFinite(Number(requirement.minimumPrerequisitePoints)) || Number(requirement.minimumPrerequisitePoints) < 0 || !Number.isFinite(Number(requirement.maxGpa)) || Number(requirement.minimumPrerequisitePoints) > Number(requirement.maxGpa))) throw new Error('A prerequisite grade minimum is invalid.');
   for (const item of merged.classes) {
     if (item.days !== undefined && (!Array.isArray(item.days) || !item.days.length || item.days.some(day => !DAYS.includes(day)))) throw new Error('A class has invalid days.');
     if (item.cancelledDates !== undefined && (!Array.isArray(item.cancelledDates) || item.cancelledDates.some(date => !validDate(date)))) throw new Error('A class has invalid cancellation dates.');
