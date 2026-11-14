@@ -44,3 +44,7 @@ test('global language buttons and the Settings selector share the saved preferen
  const root={document:{readyState:'loading',addEventListener(){},documentElement:{},querySelectorAll:()=>buttons,querySelector:s=>s==='#interface-language'?select:null},localStorage:{getItem:k=>saved.get(k),setItem:(k,v)=>saved.set(k,v)},CustomEvent:class{},dispatchEvent(){}};root.window=root;vm.createContext(root);vm.runInContext(file('js/i18n.js'),root);
  for(const lang of ['ru','ar','en']){root.AcadelyI18n.set(lang);assert.equal(select.value,lang);assert.equal(saved.get('acadely-language-v1'),lang);assert.equal(buttons.filter(b=>b['aria-pressed']==='true').length,1);assert.equal(buttons.find(b=>b['aria-pressed']==='true').dataset.language,lang);}
 });
+test('language changes refresh view dates while keeping editable forms intact',()=>{
+ let renders=0,hasForm=false;const shell={hidden:true};const c=vm.createContext({window:{AcadelyI18n:{locale:'ru'}},document:{querySelector:()=>null},appShell:shell,content:{querySelector:()=>hasForm?{}:null},render:()=>{renders++;}});
+ vm.runInContext(functionSource('refreshLanguageView'),c);c.refreshLanguageView();assert.equal(renders,0);shell.hidden=false;c.refreshLanguageView();assert.equal(renders,1);hasForm=true;c.refreshLanguageView();assert.equal(renders,1);
+});
