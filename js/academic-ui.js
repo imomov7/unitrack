@@ -1,10 +1,10 @@
 const academicDataPromises = new Map();
 function loadAcademicData(name, globalName) {
-  if (window[globalName]) return Promise.resolve(window[globalName]);
+  if (Array.isArray(window[globalName]) && window[globalName].length) return Promise.resolve(window[globalName]);
   if (academicDataPromises.has(name)) return academicDataPromises.get(name);
   const promise = new Promise((resolve,reject)=>{
     const script=document.createElement('script');script.src=`assets/data/${name}.js`;
-    script.onload=()=>window[globalName] ? resolve(window[globalName]) : reject(new Error('Directory unavailable'));
+    script.onload=()=>{if(Array.isArray(window[globalName]) && window[globalName].length) resolve(window[globalName]); else {academicDataPromises.delete(name); reject(new Error('Directory unavailable'));}};
     script.onerror=()=>{academicDataPromises.delete(name);reject(new Error('Directory unavailable'));};
     document.head.append(script);
   });
@@ -14,60 +14,13 @@ function loadAcademicData(name, globalName) {
 let academicDirectory = [];
 let academicDirectoryState = 'idle';
 let academicCatalogue = [];
-function academics() {
-  const semesters = data.semesters || [];
-  const cumulative = AcadelyPlanning.cumulativeGpa(semesters);
-  const history = semesters.filter(s=>s.status==='completed');
-  const planned = semesters.filter(s=>s.status==='planned');
-  const school = data.settings.university || 'Choose your university';
-  return `${pageHeader('University & semesters','Choose your university, organize this semester, and keep your academic history.')}
-  ${card(school, data.settings.campus ? `Campus: ${data.settings.campus}` : 'Your university and campus', `<form id="university-form" class="settings-form"><label>Find your university<input id="university-search" autocomplete="off" placeholder="Start typing a university name" role="combobox" aria-controls="university-results" aria-expanded="false"></label><div id="university-results" class="academic-results" aria-live="polite"></div><label>University name<input name="university" value="${esc(data.settings.university || '')}" required maxlength="160" placeholder="Or enter your university manually"></label><label>Campus (optional)<input name="campus" value="${esc(data.settings.campus || '')}" maxlength="100" placeholder="Enter your campus, if applicable"></label><button class="button button-primary">Save university</button></form><p class="helper-text">University directory: <a class="text-link" href="https://github.com/Hipo/university-domains-list" target="_blank" rel="noopener">Hipo university list</a>. Campus names are entered by you.</p>`)}
-  ${card('Current semester', 'Dates control when your weekly classes appear on the calendar.', `<form id="current-semester-form" class="settings-form"><label>Semester name<input name="semester" value="${esc(data.settings.semester)}" maxlength="80" required></label><div class="two-fields"><label>Start date<input name="start" type="date" value="${esc(data.settings.start)}" required></label><label>End date<input name="end" type="date" value="${esc(data.settings.end)}" required></label></div><div class="row-actions"><button class="button button-primary">Save dates</button><a class="button button-secondary" href="#timetable">Add classes</a><button class="button button-secondary" type="button" data-action="academic-finish">Finish semester</button></div></form><p class="helper-text">Finishing saves a separate history record. Starting another semester never replaces it.</p>`)}
-  ${card('Find courses', 'Search your university’s sourced catalogue, or add a course manually.', `<label class="academic-search">Course name or code<input id="catalogue-search" type="search" placeholder="Search courses" autocomplete="off"></label><div id="catalogue-results" class="academic-results" aria-live="polite"></div><button class="button button-secondary" data-action="add" data-kind="course">Add course manually</button><p class="helper-text">Catalogue coverage is limited. Always confirm current course availability, campus credits, and prerequisites with your university.</p>`)}
-  ${card('Next semester', 'Keep planned courses separate from your current courses.', `${planned.map(semesterCard).join('') || '<p class="helper-text">No planned semester yet.</p>'}<button class="button button-primary" data-action="academic-new-plan">Plan a semester</button>`)}
-  ${card('Academic history', `${history.length} completed semesters`, `<p class="academic-gpa">Cumulative GPA: <strong>${cumulative.value===null ? '—' : cumulative.value.toFixed(2)+' / '+cumulative.maxGpa}</strong></p><p class="helper-text">${esc(cumulative.reason || 'Credit weighted across completed semesters with recorded GPA points. All attempts, including retakes, count; your university may apply a different repeat policy.')}</p>${history.map(semesterCard).join('') || '<p class="helper-text">Add a previous semester to start your academic record.</p>'}<button class="button button-secondary" data-action="academic-new-history">Add previous semester</button>`)}
-  ${card('Courses to consider', 'Suggestions use your own degree list and completed courses.', `<p class="helper-text">Add courses from your official degree plan. No degree requirements or prerequisites are assumed.</p><button class="button button-secondary" data-action="academic-requirement">Add degree requirement</button><div id="recommendations">${recommendationRows()}</div>`)}`;
-}
 function semesterCard(s) {
   const gpa = AcadelyPlanning.semesterGpa(s);
   return `<article class="academic-semester"><div class="panel-heading"><div><h3>${esc(s.name)}</h3><p>${esc(s.start || 'No start date')} – ${esc(s.end || 'No end date')}${s.university ? ' · '+esc(s.university) : ''}</p></div><span>${s.status==='completed' ? 'GPA '+(gpa.value===null?'—':gpa.value.toFixed(2)+' / '+s.maxGpa) : 'Planned · '+(s.courses||[]).reduce((sum,c)=>sum+Number(c.credits||0),0)+' credits'}</span></div>${(s.courses||[]).map(c=>`<div class="data-row"><div><strong>${esc(c.code || '')} ${esc(c.name)}</strong><small>${esc(c.credits)} credits${s.status==='completed' ? ' · '+esc(c.finalGrade || 'No final grade')+' · '+(c.points==='' || c.points==null ? 'No GPA points' : esc(c.points)+' GPA points')+(c.completed?' · Completed':'') : ''}</small></div></div>`).join('') || '<p class="helper-text">No courses added.</p>'}<div class="row-actions"><button data-action="academic-edit-semester" data-id="${esc(s.id)}">Edit</button>${s.status==='planned' ? `<button data-action="academic-add-planned-course" data-id="${esc(s.id)}">Add course</button><button data-action="academic-start-plan" data-id="${esc(s.id)}">Start this semester</button>` : ''}<button data-action="academic-delete-semester" data-id="${esc(s.id)}">Delete</button></div></article>`;
 }
-function bindAcademics() {
-  if (academicDirectoryState==='idle') {
-    academicDirectoryState='loading';
-    loadAcademicData('universities', 'ACADELY_UNIVERSITIES').then(rows=>{academicDirectory=rows;academicDirectoryState='ready';updateUniversitySearch();}).catch(()=>{academicDirectoryState='failed';updateUniversitySearch();});
-  }
-  document.querySelector('#university-search')?.addEventListener('input',updateUniversitySearch);
-  document.querySelector('#university-form')?.addEventListener('submit',event=>{
-    event.preventDefault(); const f=new FormData(event.currentTarget);
-    const university=String(f.get('university')||'').trim(); if(!university)return;
-    data.settings.university=university; data.settings.campus=String(f.get('campus')||'').trim(); data.studentProfile.university=university;
-    save(); if(accountUser && profileCloudReady)syncStudentProfileToAccount('University saved to your account.'); else msg('University saved.');
-  });
-  document.querySelector('#current-semester-form')?.addEventListener('submit',event=>{
-    event.preventDefault();const f=new FormData(event.currentTarget);const start=String(f.get('start')),end=String(f.get('end'));
-    if(!validDate(start)||!validDate(end)||start>end)return msg('Choose an end date on or after the start date.');
-    data.settings={...data.settings,semester:String(f.get('semester')||'').trim(),start,end};save();msg('Semester dates saved. Your calendar is updated.');
-  });
-  document.querySelector('#catalogue-search')?.addEventListener('input',updateCatalogueSearch);
-  if (!academicCatalogue.length) loadAcademicData('course-catalogues','ACADELY_CATALOGUES').then(rows=>{academicCatalogue=rows;updateCatalogueSearch();}).catch(()=>updateCatalogueSearch());
-  updateCatalogueSearch();
-}
-function updateUniversitySearch() {
-  const input=document.querySelector('#university-search'),results=document.querySelector('#university-results'); if(!input||!results)return;
-  const matches=AcadelyPlanning.searchUniversities(academicDirectory,input.value);
-  input.setAttribute('aria-expanded',String(matches.length>0));
-  results.innerHTML=matches.length ? matches.map(row=>`<button type="button" class="university-option" data-action="academic-select-university" data-name="${esc(row.name)}">${esc(row.name)}<small>${esc(row.country)}</small></button>`).join('') : `<p class="helper-text">${academicDirectoryState==='loading'?'Loading the university directory…':academicDirectoryState==='failed'?'Directory unavailable. Enter your university below.':input.value?'No matches. Enter your university below.':'Type a name to see matching universities.'}</p>`;
-}
 function availableCatalogue() {
-  const university=String(data.settings.university||'').toLowerCase();
+  const university=String(data.studentProfile.university||data.settings.university||'').toLowerCase();
   return academicCatalogue.filter(group=>group.universityNames.some(name=>university.includes(name.toLowerCase()))).flatMap(group=>group.courses.map(course=>({...course,source:group.source,edition:group.edition})));
-}
-function updateCatalogueSearch() {
-  const results=document.querySelector('#catalogue-results');if(!results)return;
-  const q=String(document.querySelector('#catalogue-search')?.value||'').trim().toLowerCase();
-  const courses=availableCatalogue().filter(c=>`${c.code} ${c.name}`.toLowerCase().includes(q));
-  results.innerHTML=courses.length ? courses.map(c=>`<div class="data-row"><div><strong>${esc(c.code)} · ${esc(c.name)}</strong><small>${esc(c.credits)} credits · ${esc(c.description || 'See the official catalogue for details.')}</small><small>Prerequisites: ${esc(c.prerequisiteText || 'Not verified in this catalogue sample. Check with your adviser.')}</small><a class="text-link" href="${esc(c.source)}" target="_blank" rel="noopener">Official catalogue (${esc(c.edition)}) ↗</a></div><button class="button button-secondary" data-action="academic-add-catalogue" data-code="${esc(c.code)}">Add to semester</button></div>`).join('') : '<p class="helper-text">No matching sourced courses available for this university. Add your course manually.</p>';
 }
 function academicDialog(title,body,onSubmit) {
   const dialog=document.createElement('dialog');dialog.className='app-dialog';
@@ -112,7 +65,7 @@ function requirementEditor() {
 }
 function handleAcademicAction(action,control) {
   const semester=data.semesters.find(s=>s.id===control.dataset.id);
-  if(action==='academic-select-university') {document.querySelector('#university-form [name="university"]').value=control.dataset.name;document.querySelector('#university-results').innerHTML='';document.querySelector('#university-search').setAttribute('aria-expanded','false');}
+  if(action==='academic-select-university') chooseProfileUniversity(control.dataset.name);
   else if(action==='academic-new-plan')semesterEditor(null,'planned');
   else if(action==='academic-new-history')semesterEditor(null,'completed');
   else if(action==='academic-edit-semester'&&semester) {

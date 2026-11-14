@@ -131,6 +131,7 @@
     const studentData = {
       studentId: String(studentProfile.studentId || ''),
       university: String(studentProfile.university || ''),
+      campus: String(studentProfile.campus || ''),
       major: String(studentProfile.major || ''),
       academicYear: String(studentProfile.academicYear || ''),
       semester: String(studentProfile.semester || ''),
