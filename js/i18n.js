@@ -89,8 +89,12 @@
   }
   observer?.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['aria-label','placeholder','title']});
  }
- function set(next){language=supported.includes(next)?next:'en';try{localStorage.setItem(key,language);}catch{}document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';apply();root.dispatchEvent(new CustomEvent('acadely-language-changed',{detail:language}));}
- function start(){document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';observer=new MutationObserver(records=>{const scopes=new Set();for(const r of records){if(r.type==='childList')r.addedNodes.forEach(n=>scopes.add(n));else scopes.add(r.target);}for(const scope of scopes)if(scope.isConnected)apply(scope);});apply();}
+ function syncControls(){
+  for(const button of document.querySelectorAll?.('[data-language]')||[])button.setAttribute('aria-pressed',String(button.dataset.language===language));
+  const select=document.querySelector?.('#interface-language');if(select)select.value=language;
+ }
+ function set(next){language=supported.includes(next)?next:'en';try{localStorage.setItem(key,language);}catch{}document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';syncControls();apply();root.dispatchEvent(new CustomEvent('acadely-language-changed',{detail:language}));}
+ function start(){document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';syncControls();document.addEventListener('click',event=>{const button=event.target.closest('[data-language]');if(button&&supported.includes(button.dataset.language))set(button.dataset.language);});observer=new MutationObserver(records=>{const scopes=new Set();for(const r of records){if(r.type==='childList')r.addedNodes.forEach(n=>scopes.add(n));else scopes.add(r.target);}for(const scope of scopes)if(scope.isConnected)apply(scope);});apply();}
  root.AcadelyI18n={t:translate,apply,set,get language(){return language;},get locale(){return language;}};
  const originalConfirm=root.confirm?.bind(root);if(originalConfirm)root.confirm=message=>originalConfirm(translate(message));
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
