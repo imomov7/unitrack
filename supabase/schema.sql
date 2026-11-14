@@ -1,14 +1,32 @@
 -- Acadely account and cloud workspace schema.
--- Run once in Supabase SQL Editor. Academic records keep the existing
+-- Run in Supabase SQL Editor (including again after schema updates). Academic records keep the existing
 -- unitrack-data-v1 document shape in a private JSONB workspace so every
 -- existing feature and JSON import/export remains compatible.
 
 create table if not exists public.acadely_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   full_name text not null default '',
+  email text not null default '',
+  student_data jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Add profile fields to projects that already ran an earlier version of this schema.
+alter table public.acadely_profiles add column if not exists email text not null default '';
+alter table public.acadely_profiles add column if not exists student_data jsonb not null default '{}'::jsonb;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint
+    where conname = 'acadely_profiles_student_data_is_object'
+      and conrelid = 'public.acadely_profiles'::regclass
+  ) then
+    alter table public.acadely_profiles
+      add constraint acadely_profiles_student_data_is_object check (jsonb_typeof(student_data) = 'object');
+  end if;
+end;
+$$;
 
 create table if not exists public.student_workspaces (
   user_id uuid primary key references auth.users(id) on delete cascade,
@@ -75,8 +93,8 @@ for each row execute function public.acadely_set_updated_at();
 create or replace function public.acadely_create_profile_for_new_user()
 returns trigger language plpgsql security definer set search_path = '' as $$
 begin
-  insert into public.acadely_profiles (user_id, full_name)
-  values (new.id, left(coalesce(new.raw_user_meta_data->>'full_name', ''), 120))
+  insert into public.acadely_profiles (user_id, full_name, email)
+  values (new.id, left(coalesce(new.raw_user_meta_data->>'full_name', ''), 120), coalesce(new.email, ''))
   on conflict (user_id) do nothing;
   return new;
 end;
@@ -148,6 +166,14 @@ begin
       and tablename = 'student_workspaces'
   ) then
     alter publication supabase_realtime add table public.student_workspaces;
+  end if;
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'acadely_profiles'
+  ) then
+    alter publication supabase_realtime add table public.acadely_profiles;
   end if;
 end;
 $$;
