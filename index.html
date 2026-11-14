@@ -9,20 +9,22 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Acadely">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="manifest.json?v=acadely-pwa-1">
+  <link rel="manifest" href="manifest.json?v=acadely-academics-1">
   <link rel="icon" type="image/svg+xml" href="assets/branding/favicon.svg?v=acadely-1">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/branding/favicon-32.png?v=acadely-1">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/branding/favicon-16.png?v=acadely-1">
-  <link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-icon.png?v=acadely-pwa-1">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-icon.png?v=acadely-academics-1">
   <title>ACADELY — Your academic workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=acadely-pwa-1">
-  <script src="js/supabase-config.js?v=acadely-cloud-3"></script>
-  <script src="js/account-cloud.js?v=acadely-cloud-3" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=acadely-academics-1">
+  <script src="js/supabase-config.js?v=acadely-academics-1"></script>
+  <script src="js/account-cloud.js?v=acadely-academics-1" defer></script>
   <script src="js/grade-math.js?v=acadely-2" defer></script>
-  <script src="js/app.js?v=acadely-cloud-3" defer></script>
+  <script src="js/academic-planning.js?v=1" defer></script>
+  <script src="js/academic-ui.js?v=1" defer></script>
+  <script src="js/app.js?v=acadely-academics-1" defer></script>
 </head>
 <body>
   <main id="auth-screen" class="auth-screen" hidden aria-live="polite"></main>
@@ -43,6 +45,7 @@
         <a class="nav-item" data-page="gpa" href="#gpa"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m7 10.2 5 2.8 5-2.8M5 9v6l7 4 7-4V9"/></svg></span>GPA calculator</a>
         <a class="nav-item" data-page="planner" href="#planner"><span class="nav-icon">✦</span>Smart Study Planner</a>
         <a class="nav-item" data-page="overview" href="#overview"><span class="nav-icon">▤</span>Semester Overview</a>
+        <a class="nav-item" data-page="academics" href="#academics"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 9 9-6 9 6H3Zm2 2v8m7-8v8m7-8v8M3 21h18"/></svg></span>University & semesters</a>
       </nav>
       <div class="sidebar-bottom">
         <a class="nav-item" data-page="settings" href="#settings"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.7-1.4-2.4L5.3 15a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.7-1L9 7.4h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1-.1 2Z" transform="translate(1 -1)"/></svg></span>Settings</a>
