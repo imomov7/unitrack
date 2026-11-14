@@ -1,14 +1,14 @@
 /* UI translation only. Never changes stored values, course codes or official names.
-   New UI text belongs in locales/ar.js. Uses text nodes, not replacement HTML. */
+   New UI text belongs in the matching locales/*.js catalogue. Uses text nodes, not replacement HTML. */
 (function(root){
- const key='acadely-language-v1';let language='en';try{language=localStorage.getItem(key)==='ar'?'ar':'en';}catch{}
+ const key='acadely-language-v1';const supported=['en','ar','ru'];let language='en';try{const saved=localStorage.getItem(key);language=supported.includes(saved)?saved:'en';}catch{}
  const texts=new WeakMap(),attributes=new WeakMap();let observer;
  function translate(value){
-  if(language!=='ar')return String(value);
-  const raw=String(value),trim=raw.trim(),dictionary=root.ACADELY_AR||{};
+  if(language==='en')return String(value);
+  const raw=String(value),trim=raw.trim(),dictionary=(language==='ru'?root.ACADELY_RU:root.ACADELY_AR)||{};
   if(dictionary[trim])return raw.replace(trim,dictionary[trim]);
   // Preserve interpolated values verbatim; translate only the declared UI fragments.
-  for(const [pattern,replacement] of patterns){if(pattern.test(trim))return raw.replace(trim,trim.replace(pattern,replacement));}
+  for(const [pattern,replacement] of (language==='ru'?russianPatterns:arabicPatterns)){if(pattern.test(trim))return raw.replace(trim,trim.replace(pattern,replacement));}
   // Translate status fragments around unchanged names and codes.
   if(trim.includes(' · '))return raw.replace(trim,trim.split(' · ').map(part=>{
    if(typeof root.acadelyProtectedText==='function'&&root.acadelyProtectedText().has(part))return part;
@@ -16,7 +16,8 @@
   }).join(' · '));
   return raw;
  }
- const patterns=[
+ const arabicPatterns=[
+  [/^Hello, (.+)$/,'مرحبًا، $1'],
   [/^([\d.]+) semester credits$/,'$1 ساعات فصلية معتمدة'],[/^([\d.]+) MIT units$/,'$1 وحدات MIT'],
   [/^across the remaining ([\d.]+)% of the course\.$/,'في $1% المتبقية من المقرر.'],
   [/^Even with 100% on all remaining work, your maximum final grade is ([\d.]+)%\.$/,'حتى مع الحصول على 100% في العمل المتبقي، أعلى درجة نهائية ممكنة هي $1%.'],
@@ -46,6 +47,31 @@
   [/^Delete (.+) and its (\d+) linked records\? This can’t be undone\.$/,'حذف $1 و$2 سجلات مرتبطة به؟ لا يمكن التراجع.'],
   [/^Final course grade must be between 0% and 100%\.$/,'يجب أن تكون الدرجة النهائية بين 0% و100%.'],
  ];
+ const russianPatterns=[
+  [/^Hello, (.+)$/,'Здравствуйте, $1'],
+  [/^([\d.]+) semester credits$/,'$1 семестровых кредитов'],[/^([\d.]+) MIT units$/,'$1 единиц MIT'],
+  [/^across the remaining ([\d.]+)% of the course\.$/,'за оставшиеся $1% курса.'],
+  [/^Even with 100% on all remaining work, your maximum final grade is ([\d.]+)%\.$/,'Даже при 100% за все оставшиеся работы максимальная итоговая оценка — $1%.'],
+  [/^Current assessment average is based on ([\d.]+)% of course weight; ([\d.]+)% remains\.$/,'Текущий средний результат основан на $1% веса курса; осталось $2%.'],
+  [/^With a hypothetical ([\d.]+)% average, your projected final grade is$/,'При предполагаемом среднем результате $1% прогноз итоговой оценки:'],
+  [/^The top grade boundary must award the full ([\d.]+) GPA points\.$/,'Верхняя граница должна давать максимальные $1 баллов GPA.'],
+  [/^([\d.]+)% graded$/,'Оценено $1%'],[/^Current assessment average; ([\d.]+)% weight remains.$/,'Текущий средний результат; осталось $1% веса.'],
+  [/^([\d.]+)\/([\d.]+) marks$/,'$1/$2 баллов'],[/^([\d.]+)% course weight$/,'$1% веса курса'],[/^([\d.]+) hours$/,'$1 ч'],
+  [/^Remove grade boundary (\d+)$/,'Удалить границу оценки $1'],
+  [/^(\d+) completed sessions this week. Only saved and completed sessions are counted.$/,'Завершено сессий на этой неделе: $1. Учитываются только сохранённые и завершённые сессии.'],
+  [/^([\d.]+) hours per day. Timetable classes are displayed on the dashboard; you can adjust available study hours independently in Settings.$/,'$1 ч в день. Занятия показаны на панели управления; доступное время самостоятельной учёбы настраивается отдельно в настройках.'],
+  [/^Official catalogue · (.+) ↗$/,'Официальный каталог · $1 ↗'],
+  [/^(\d+(?:\.\d+)?) credits$/,'$1 кредитов'],[/^(\d+(?:\.\d+)?) graded credits$/,'$1 оценённых кредитов'],
+  [/^Current courses · (.+) graded credits$/,'Текущие курсы · $1 оценённых кредитов'],
+  [/^(\d+) of (\d+) assignments completed$/,'Выполнено заданий: $1 из $2'],[/^(\d+) on your schedule$/,'В расписании: $1'],
+  [/^(.+) days away$/,'Через $1 дн.'],[/^(.+) days ago$/,'$1 дн. назад'],
+  [/^Workspace \/ (.+)$/,'Рабочая область / $1'],[/^Professor (.+)$/,'Преподаватель: $1'],
+  [/^GPA points \((.+)\)$/,'Баллы GPA ($1)'],[/^Required average: (.+)$/,'Необходимый средний результат: $1'],
+  [/^Assignment: (.+)$/,'Задание: $1'],[/^Exam: (.+)$/,'Экзамен: $1'],[/^Class: (.+)$/,'Занятие: $1'],
+  [/^Personal: (.+)$/,'Личное: $1'],[/^Study: (.+)$/,'Учёба: $1'],[/^Academic deadline: (.+)$/,'Учебный срок: $1'],
+  [/^Events · (.+)$/,'События · $1'],[/^Select (.+)$/,'Выбрать: $1'],
+  [/^Delete (.+) and its (\d+) linked records\? This can’t be undone\.$/,'Удалить $1 и связанные записи ($2)? Это действие нельзя отменить.'],
+ ];
  function protectedText(node){
   const p=node.parentElement;if(!p||p.closest('script,style,textarea,input,code,[translate="no"],[data-official]'))return true;
   // User values can coincide with UI labels (e.g. a course called Calendar).
@@ -63,9 +89,9 @@
   }
   observer?.observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['aria-label','placeholder','title']});
  }
- function set(next){language=next==='ar'?'ar':'en';try{localStorage.setItem(key,language);}catch{}document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';apply();root.dispatchEvent(new CustomEvent('acadely-language-changed',{detail:language}));}
+ function set(next){language=supported.includes(next)?next:'en';try{localStorage.setItem(key,language);}catch{}document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';apply();root.dispatchEvent(new CustomEvent('acadely-language-changed',{detail:language}));}
  function start(){document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';observer=new MutationObserver(records=>{const scopes=new Set();for(const r of records){if(r.type==='childList')r.addedNodes.forEach(n=>scopes.add(n));else scopes.add(r.target);}for(const scope of scopes)if(scope.isConnected)apply(scope);});apply();}
- root.AcadelyI18n={t:translate,apply,set,get language(){return language;},get locale(){return language==='ar'?'ar':'en';}};
+ root.AcadelyI18n={t:translate,apply,set,get language(){return language;},get locale(){return language;}};
  const originalConfirm=root.confirm?.bind(root);if(originalConfirm)root.confirm=message=>originalConfirm(translate(message));
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })(window);

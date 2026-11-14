@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.5.0';
+const APP_VERSION = '1.5.1';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo', email: 'imomovabdullo009@gmail.com' });
 const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, courses: myCourses, history: academicHistory };
 const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA Calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
@@ -255,7 +255,7 @@ function gpa() {
 
 function settings() {
   const setting = data.settings;
-  return `${pageHeader('Settings', 'Your preferences, grading scale, and account.')}${card('Language', 'Choose your interface language. Official names and your saved information stay unchanged.', `<label>Interface language<select id="interface-language"><option value="en" ${window.AcadelyI18n?.language!=='ar'?'selected':''}>English</option><option value="ar" ${window.AcadelyI18n?.language==='ar'?'selected':''}>Arabic</option></select></label>`)}${card('Grading & study time', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', accountUser ? 'Private cloud account and local cache' : 'Local data storage', `<p class="helper-text">${accountUser ? 'Your workspace is saved in your account and cached on this device for offline use. Export a JSON backup before importing data.' : 'ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. Export a JSON backup before importing data.'}</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${accountCard()}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
+  return `${pageHeader('Settings', 'Your preferences, grading scale, and account.')}${card('Language', 'Choose your interface language. Official names and your saved information stay unchanged.', `<label>Interface language<select id="interface-language">${[['en','English'],['ar','Arabic'],['ru','Russian']].map(([value,label])=>`<option value="${value}" ${(window.AcadelyI18n?.language||'en')===value?'selected':''}>${label}</option>`).join('')}</select></label>`)}${card('Grading & study time', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', accountUser ? 'Private cloud account and local cache' : 'Local data storage', `<p class="helper-text">${accountUser ? 'Your workspace is saved in your account and cached on this device for offline use. Export a JSON backup before importing data.' : 'ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. Export a JSON backup before importing data.'}</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${accountCard()}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
 }
 
 function accountCard() {
@@ -298,6 +298,7 @@ function authMarkup(mode = 'login', feedback = '') {
 }
 
 function showAuth(mode, feedback = '') {
+  document.querySelector('#app-boot')?.setAttribute('hidden','');
   authView = mode;
   authFeedback = feedback;
   authScreen.innerHTML = authMarkup(mode, feedback);
@@ -306,6 +307,7 @@ function showAuth(mode, feedback = '') {
 }
 
 function showAcadelyApp() {
+  document.querySelector('#app-boot')?.setAttribute('hidden','');
   authScreen.hidden = true;
   document.querySelector('.app-shell').hidden = false;
 }
@@ -680,6 +682,7 @@ async function initializeAccountService() {
   if (!cloudConfigured) {
     authReady = true;
     render();
+    showAcadelyApp();
     return;
   }
   showAuth('loading');
@@ -1100,6 +1103,8 @@ function render() {
   const count = document.querySelector('.nav-count');
   if (count) count.textContent = data.assignments.filter((item) => !item.done).length;
   document.querySelector('.breadcrumb strong').textContent = labels[currentPage] || 'Dashboard';
+  document.querySelector('.breadcrumb strong').hidden=currentPage==='dashboard';
+  document.querySelector('.breadcrumb .crumb-sep').hidden=currentPage==='dashboard';
   content.innerHTML = contextNavigation(currentPage) + views[currentPage]();
   content.setAttribute('aria-busy','false');
   window.dispatchEvent(new Event('acadely-rendered'));
@@ -1618,7 +1623,7 @@ window.addEventListener('offline', () => syncNetworkStatus());
 syncNetworkStatus();
 registerServiceWorker();
 installAuthInteractions();
-document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
+document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 render();
 initializeAccountService();
 
