@@ -1,4 +1,4 @@
-// Common study fields selected from NCES CIP 2020. Not a university program catalogue.
+// NCES general study fields and source-linked university programs. Partial coverage.
 window.ACADELY_MAJORS = [
   {
     "code": "01.0000",
@@ -45,7 +45,10 @@ window.ACADELY_MAJORS = [
   {
     "code": "11.0103",
     "name": "Information Technology",
-    "aliases": []
+    "aliases": [
+      "IT",
+      "ICT"
+    ]
   },
   {
     "code": "11.0201",
@@ -161,7 +164,9 @@ window.ACADELY_MAJORS = [
   {
     "code": "26.0101",
     "name": "Biology/Biological Sciences, General",
-    "aliases": []
+    "aliases": [
+      "Biology"
+    ]
   },
   {
     "code": "26.0202",
@@ -342,7 +347,10 @@ window.ACADELY_MAJORS = [
     "name": "Business Administration and Management, General",
     "aliases": [
       "Business Administration",
-      "Business Management"
+      "Business Management",
+      "Business",
+      "BBA",
+      "MBA"
     ]
   },
   {
@@ -379,5 +387,579 @@ window.ACADELY_MAJORS = [
     "code": "54.0101",
     "name": "History, General",
     "aliases": []
+  },
+  {
+    "name": "Architecture (Course 4)",
+    "aliases": [
+      "Architecture"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/architecture-course-4/"
+  },
+  {
+    "name": "Art and Design (Course 4-B)",
+    "aliases": [
+      "Art and Design"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/architecture-course-4-b/"
+  },
+  {
+    "name": "Planning (Course 11)",
+    "aliases": [
+      "Planning"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/planning-course-11/"
+  },
+  {
+    "name": "Aerospace Engineering (Course 16)",
+    "aliases": [
+      "Aerospace Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/aerospace-engineering-course-16/"
+  },
+  {
+    "name": "Archaeology and Materials as Recommended by the Department of Materials Science and Engineering (Course 3-C)",
+    "aliases": [
+      "Archaeology and Materials as Recommended by the Department of Materials Science and Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/archaeology-materials-course-3-c/"
+  },
+  {
+    "name": "Artificial Intelligence and Decision Making (6-4)",
+    "aliases": [
+      "Artificial Intelligence and Decision Making"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/artifical-intelligence-decision-making-course-6-4/"
+  },
+  {
+    "name": "Biological Engineering (Course 20)",
+    "aliases": [
+      "Biological Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/biological-engineering-course-20/"
+  },
+  {
+    "name": "Chemical-Biological Engineering (Course 10-B)",
+    "aliases": [
+      "Chemical-Biological Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/chemical-biological-engineering-course-10-b/"
+  },
+  {
+    "name": "Chemical Engineering (Course 10)",
+    "aliases": [
+      "Chemical Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/chemical-engineering-course-10/"
+  },
+  {
+    "name": "Chemical Engineering as Recommended by the Department of Chemical Engineering (Course 10-C)",
+    "aliases": [
+      "Chemical Engineering as Recommended by the Department of Chemical Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/chemical-engineering-course-10-c/"
+  },
+  {
+    "name": "Computer Science and Engineering (Course 6-3)",
+    "aliases": [
+      "Computer Science and Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/computer-science-engineering-course-6-3/"
+  },
+  {
+    "name": "Electrical Engineering with Computing (Course 6-5)",
+    "aliases": [
+      "Electrical Engineering with Computing"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/electrical-engineering-computing-course-6-5/"
+  },
+  {
+    "name": "Engineering (Course 1-ENG)",
+    "aliases": [
+      "Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/engineering-civil-environmental-engineering-course-1-eng/"
+  },
+  {
+    "name": "Engineering (Course 2-A)",
+    "aliases": [
+      "Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/mechanical-engineering-course-2-a/"
+  },
+  {
+    "name": "Engineering (Course 10-ENG)",
+    "aliases": [
+      "Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/engineering-chemical-engineering-course-10-eng/"
+  },
+  {
+    "name": "Engineering (Course 16-ENG)",
+    "aliases": [
+      "Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/engineering-aeronautics-astronautics-course-16-eng/"
+  },
+  {
+    "name": "Engineering (Course 22-ENG)",
+    "aliases": [
+      "Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/engineering-nuclear-science-engineering-course-22-eng/"
+  },
+  {
+    "name": "Materials Science and Engineering (Course 3)",
+    "aliases": [
+      "Materials Science and Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/materials-science-engineering-course-3/"
+  },
+  {
+    "name": "Materials Science and Engineering (Course 3-A)",
+    "aliases": [
+      "Materials Science and Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/materials-science-engineering-course-3-a/"
+  },
+  {
+    "name": "Mechanical and Ocean Engineering (Course 2-OE)",
+    "aliases": [
+      "Mechanical and Ocean Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/mechanical-ocean-engineering-course-2-oe/"
+  },
+  {
+    "name": "Mechanical Engineering (Course 2)",
+    "aliases": [
+      "Mechanical Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/mechanical-engineering-course-2/"
+  },
+  {
+    "name": "Nuclear Science and Engineering (Course 22)",
+    "aliases": [
+      "Nuclear Science and Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/nuclear-science-engineering-course-22/"
+  },
+  {
+    "name": "Anthropology (Course 21A)",
+    "aliases": [
+      "Anthropology"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/anthropology-course-21a/"
+  },
+  {
+    "name": "Comparative Media Studies (CMS)",
+    "aliases": [
+      "Comparative Media Studies"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/comparative-media-studies-cms/"
+  },
+  {
+    "name": "Economics (Course 14-1)",
+    "aliases": [
+      "Economics"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/economics-course-14/"
+  },
+  {
+    "name": "Global Studies and Languages (Course 21G)",
+    "aliases": [
+      "Global Studies and Languages"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/global-studies-languages-course-21g/"
+  },
+  {
+    "name": "History (Course 21H)",
+    "aliases": [
+      "History"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/history-course-21h/"
+  },
+  {
+    "name": "Humanities (Course 21)",
+    "aliases": [
+      "Humanities"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/humanities-course-21/"
+  },
+  {
+    "name": "Humanities and Engineering (Course 21E)",
+    "aliases": [
+      "Humanities and Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/humanities-engineering-course-21e/"
+  },
+  {
+    "name": "Humanities and Science (Course 21S)",
+    "aliases": [
+      "Humanities and Science"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/humanities-science-course-21s/"
+  },
+  {
+    "name": "Linguistics and Philosophy (Course 24-2)",
+    "aliases": [
+      "Linguistics and Philosophy"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/linguistics-philosophy-course-24-2/"
+  },
+  {
+    "name": "Literature (Course 21L)",
+    "aliases": [
+      "Literature"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/literature-course-21l/"
+  },
+  {
+    "name": "Mathematical Economics (Course 14-2)",
+    "aliases": [
+      "Mathematical Economics"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/mathematical-economics-course-14-2/"
+  },
+  {
+    "name": "Music (Course 21M)",
+    "aliases": [
+      "Music"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/music-course-21m/"
+  },
+  {
+    "name": "Philosophy (Course 24-1)",
+    "aliases": [
+      "Philosophy"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/philosophy-course-24-1/"
+  },
+  {
+    "name": "Political Science (Course 17)",
+    "aliases": [
+      "Political Science"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/political-science-course-17/"
+  },
+  {
+    "name": "Science, Technology, and Society/Second Major (STS)",
+    "aliases": [
+      "Science, Technology, and Society/Second Major"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/science-technology-society-sts/"
+  },
+  {
+    "name": "Theater Arts (Course 21T)",
+    "aliases": [
+      "Theater Arts"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/theater-arts-course-21t/"
+  },
+  {
+    "name": "Writing (Course 21W)",
+    "aliases": [
+      "Writing"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/writing-course-21w/"
+  },
+  {
+    "name": "Business Analytics (Course 15-2)",
+    "aliases": [
+      "Business Analytics"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/business-analytics-course-15-2/"
+  },
+  {
+    "name": "Finance (Course 15-3)",
+    "aliases": [
+      "Finance"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/finance-course-15-3/"
+  },
+  {
+    "name": "Management (Course 15-1)",
+    "aliases": [
+      "Management"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/management-course-15-1/"
+  },
+  {
+    "name": "Biology (Course 7)",
+    "aliases": [
+      "Biology"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/biology-course-7/"
+  },
+  {
+    "name": "Brain and Cognitive Sciences (Course 9)",
+    "aliases": [
+      "Brain and Cognitive Sciences"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/brain-cognitive-sciences-course-9/"
+  },
+  {
+    "name": "Chemistry (Course 5)",
+    "aliases": [
+      "Chemistry"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/chemistry-course-5/"
+  },
+  {
+    "name": "Earth, Atmospheric, and Planetary Sciences (Course 12)",
+    "aliases": [
+      "Earth, Atmospheric, and Planetary Sciences"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/earth-atmospheric-planetary-sciences-course-12/"
+  },
+  {
+    "name": "Mathematics (Course 18)",
+    "aliases": [
+      "Mathematics"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/mathematics-course-18/"
+  },
+  {
+    "name": "Mathematics with Computer Science (Course 18-C)",
+    "aliases": [
+      "Mathematics with Computer Science"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/mathematics-computer-science-course-18-c/"
+  },
+  {
+    "name": "Physics (Course 8)",
+    "aliases": [
+      "Physics"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/physics-course-8/"
+  },
+  {
+    "name": "Artificial Intelligence and Decision Making (Course 6-4)",
+    "aliases": [
+      "Artificial Intelligence and Decision Making"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/artifical-intelligence-decision-making-course-6-4/"
+  },
+  {
+    "name": "Chemistry and Biology (Course 5-7)",
+    "aliases": [
+      "Chemistry and Biology"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/chemistry-biology-course-5-7/"
+  },
+  {
+    "name": "Climate System Science and Engineering (Course 1-12)",
+    "aliases": [
+      "Climate System Science and Engineering"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/climate-system-science-engineering-course-1-12/"
+  },
+  {
+    "name": "Computation and Cognition (Course 6-9)",
+    "aliases": [
+      "Computation and Cognition"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/computation-cognition-6-9/"
+  },
+  {
+    "name": "Computer Science and Molecular Biology (Course 6-7)",
+    "aliases": [
+      "Computer Science and Molecular Biology"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/computer-science-molecular-biology-course-6-7/"
+  },
+  {
+    "name": "Computer Science, Economics, and Data Science (Course 6-14)",
+    "aliases": [
+      "Computer Science, Economics, and Data Science"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/computer-science-economics-data-science-course-6-14/"
+  },
+  {
+    "name": "Urban Science and Planning with Computer Science (Course 11-6)",
+    "aliases": [
+      "Urban Science and Planning with Computer Science"
+    ],
+    "universityNames": [
+      "Massachusetts Institute of Technology"
+    ],
+    "source": "https://catalog.mit.edu/degree-charts/urban-science-planning-computer-science-11-6"
+  },
+  {
+    "name": "Computing and Information Technologies BS",
+    "aliases": [
+      "CIT",
+      "Computing and Information Technologies",
+      "Information Technology",
+      "IT"
+    ],
+    "universityNames": [
+      "Rochester Institute of Technology"
+    ],
+    "source": "https://www.rit.edu/study/information-technology-bs",
+    "note": "2026–2027 program; retitled Information Technology effective Fall 2027."
   }
 ];
