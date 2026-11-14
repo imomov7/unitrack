@@ -89,6 +89,63 @@
     return client.auth.updateUser({ email }, { emailRedirectTo });
   }
 
+  async function getOrCreateProfile(user) {
+    const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
+    if (currentAuthError) throw currentAuthError;
+    user = currentAuth.user;
+    if (!user?.id) throw new Error('A signed-in account is required to load its profile.');
+    const columns = 'user_id,full_name,email,student_data';
+    const readOwnProfile = () => client.from('acadely_profiles').select(columns).eq('user_id', user.id).maybeSingle();
+    let { data, error } = await readOwnProfile();
+    if (error) throw error;
+    if (!data) {
+      const { error: createError } = await client.from('acadely_profiles').upsert({
+        user_id: user.id,
+        full_name: String(user.user_metadata?.full_name || '').trim().slice(0, 120),
+        email: String(user.email || ''),
+        student_data: {},
+      }, { onConflict: 'user_id', ignoreDuplicates: true });
+      if (createError) throw createError;
+      ({ data, error } = await readOwnProfile());
+      if (error) throw error;
+    }
+    const patch = {};
+    const metadataName = String(user.user_metadata?.full_name || '').trim().slice(0, 120);
+    if (!String(data?.full_name || '').trim() && metadataName) patch.full_name = metadataName;
+    if (String(data?.email || '') !== String(user.email || '')) patch.email = String(user.email || '');
+    if (Object.keys(patch).length) {
+      const { data: updated, error: updateError } = await client.from('acadely_profiles').update(patch).eq('user_id', user.id).select(columns).single();
+      if (updateError) throw updateError;
+      data = updated;
+    }
+    return data || { user_id: user.id, full_name: metadataName, email: String(user.email || ''), student_data: {} };
+  }
+
+  async function saveStudentProfile(userId, studentProfile) {
+    const { data: authResult, error: authError } = await client.auth.updateUser({
+      data: { full_name: String(studentProfile.fullName || '').trim().slice(0, 120) },
+    });
+    if (authError) throw authError;
+    const authenticatedUser = authResult.user;
+    if (!authenticatedUser?.id || authenticatedUser.id !== userId) throw new Error('The signed-in account changed. Sign in again to save this profile.');
+    const studentData = {
+      studentId: String(studentProfile.studentId || ''),
+      university: String(studentProfile.university || ''),
+      major: String(studentProfile.major || ''),
+      academicYear: String(studentProfile.academicYear || ''),
+      semester: String(studentProfile.semester || ''),
+      profilePicture: String(studentProfile.profilePicture || ''),
+    };
+    const { data, error } = await client.from('acadely_profiles').upsert({
+      user_id: authenticatedUser.id,
+      full_name: String(studentProfile.fullName || '').trim().slice(0, 120),
+      email: String(authenticatedUser.email || ''),
+      student_data: studentData,
+    }, { onConflict: 'user_id' }).select('user_id,full_name,email,student_data').single();
+    if (error) throw error;
+    return { profile: data, user: authenticatedUser };
+  }
+
   async function signOut() {
     return client.auth.signOut({ scope: 'local' });
   }
@@ -120,9 +177,12 @@
       .subscribe();
   }
 
-  async function updateProfileName(userId, fullName) {
-    const { error } = await client.from('acadely_profiles').upsert({ user_id: userId, full_name: fullName });
-    if (error) throw error;
+  function subscribeProfile(userId, onChange) {
+    return client.channel(`acadely-profile-${userId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'acadely_profiles', filter: `user_id=eq.${userId}`,
+      }, onChange)
+      .subscribe();
   }
 
   function closeRealtime() {
@@ -131,7 +191,7 @@
 
   window.AcadelyCloudService = {
     configured, initialize, signUp, signIn, setRemember, sendPasswordReset, resendSignupConfirmation,
-    updatePassword, updateEmail, signOut, deleteAccount, loadWorkspace,
-    saveWorkspace, subscribeWorkspace, updateProfileName, closeRealtime,
+    updatePassword, updateEmail, getOrCreateProfile, saveStudentProfile, signOut,
+    deleteAccount, loadWorkspace, saveWorkspace, subscribeWorkspace, subscribeProfile, closeRealtime,
   };
 })();
