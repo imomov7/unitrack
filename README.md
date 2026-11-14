@@ -63,7 +63,7 @@ Run local suites with `node --test tests/grade-math.test.js tests/supabase-confi
 
 ## University and semester planning
 
-Open **University & semesters** from the sidebar to choose a university and optional campus, save current semester dates, find sourced catalogue courses, add prior semesters, and plan the next semester. University/campus, semester history, plans, and degree requirements live inside the existing workspace document and use its private cloud sync and JSON export. `unitrack-data-v1` remains the local-only storage key.
+Choose your university and campus in **Student Profile**. Set semester dates in **Calendar**. Search and manage current courses in **My Courses**, with future plans under **Plan next semester**. Open **Grades → Academic history** for prior semesters. University/campus, semester history, plans, and degree requirements live inside the existing workspace document and use its private cloud sync and JSON export. `unitrack-data-v1` remains the local-only storage key.
 
 Classes accept multiple weekdays. Calendar occurrences are derived from those schedules, bounded by current semester dates, and can be cancelled individually from calendar details. Legacy single-day classes are still supported. Changing a schedule does not create copies of its events.
 
@@ -72,3 +72,14 @@ Completed semesters store independent copies of course codes, credits, transcrip
 Course recommendations use student-entered degree requirements with a source URL and explicitly checked prerequisites; uncertain courses are shown for adviser review without an automatic add button. Course availability and campus equivalency still require university confirmation. The initial sourced course catalogue is a small RIT sample; other schools use manual course entry. See `assets/data/README.md` for sources and expansion instructions.
 
 Local verification includes pure recurrence/GPA/recommendation tests and DOM integration tests for search, course addition, editing/cancellation, history, semester transitions, JSON import validation, and persistence. Physical mobile devices and live multi-device authenticated sync require separate checks with signed-in accounts.
+
+
+## Simple workspace navigation (1.4)
+
+The main navigation is Dashboard, My Courses, Calendar, Assignments, Grades, and Student Profile. Study plan and Settings remain available in the sidebar. Class schedules and exams are inside Calendar; marks/targets, semester GPA, history, and progress are inside Grades. The former `#academics` link safely resolves to Profile. Related features keep their existing data and route compatibility.
+
+Adding a course opens a search dialog with explicitly limited catalogue coverage, an already-added state, and manual entry. Course cards show saved name/code, credits, semester, optional professor, schedule, and current grade, with working edit/remove/schedule/mark controls. The bundled university directory is checked for nonempty data and provides manual entry when loading fails or no result matches. Campus saves in the existing private profile student_data JSON, so no schema change is required for this redesign.
+
+Fixes include duplicate route renders that could steal input focus, disabled sign-in retry buttons, signed-in account isolation from legacy local-storage events, and preservation of unsynced account edits in account-specific caches. Dirty caches are restored on login, and differing cloud revisions require explicit conflict resolution. Completed semesters and all existing calculations are preserved.
+
+Run all automated checks with `node --test tests/*.test.*`. Browser checks use a separate localhost fixture with disposable academic data; live production data is never modified by these tests.

@@ -9,22 +9,23 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Acadely">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="manifest" href="manifest.json?v=acadely-academics-1">
+  <link rel="manifest" href="manifest.json?v=acadely-ux-1">
   <link rel="icon" type="image/svg+xml" href="assets/branding/favicon.svg?v=acadely-1">
   <link rel="icon" type="image/png" sizes="32x32" href="assets/branding/favicon-32.png?v=acadely-1">
   <link rel="icon" type="image/png" sizes="16x16" href="assets/branding/favicon-16.png?v=acadely-1">
-  <link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-icon.png?v=acadely-academics-1">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/branding/apple-touch-icon.png?v=acadely-ux-1">
   <title>ACADELY — Your academic workspace</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=acadely-academics-1">
-  <script src="js/supabase-config.js?v=acadely-academics-1"></script>
-  <script src="js/account-cloud.js?v=acadely-academics-1" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=acadely-ux-1">
+  <script src="js/supabase-config.js?v=acadely-ux-1"></script>
+  <script src="js/account-cloud.js?v=acadely-ux-1" defer></script>
   <script src="js/grade-math.js?v=acadely-2" defer></script>
-  <script src="js/academic-planning.js?v=1" defer></script>
-  <script src="js/academic-ui.js?v=1" defer></script>
-  <script src="js/app.js?v=acadely-academics-1" defer></script>
+  <script src="js/academic-planning.js?v=acadely-ux-1" defer></script>
+  <script src="js/academic-ui.js?v=acadely-ux-1" defer></script>
+  <script src="js/ux.js?v=acadely-ux-1" defer></script>
+  <script src="js/app.js?v=acadely-ux-1" defer></script>
 </head>
 <body>
   <main id="auth-screen" class="auth-screen" hidden aria-live="polite"></main>
@@ -35,22 +36,17 @@
         <img class="brand-icon" src="assets/branding/acadely-icon-white.svg" alt="" aria-hidden="true">
       </a>
       <div class="workspace-label">WORKSPACE</div>
-      <nav class="nav-list">
-        <a class="nav-item active" data-page="dashboard" href="#dashboard" aria-current="page"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="11" width="7" height="10" rx="2"/><rect x="3" y="14" width="8" height="7" rx="2"/></svg></span>Dashboard</a>
-        <a class="nav-item" data-page="assignments" href="#assignments"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M8 5H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-3"/><rect x="8" y="3" width="8" height="4" rx="1.5"/><path d="m8 13 2 2 5-5"/></svg></span>Assignments<span class="nav-count">0</span></a>
-        <a class="nav-item" data-page="grades" href="#grades"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19V5m0 14h17"/><path d="m7 15 4-4 3 2 6-7"/></svg></span>Grade calculator</a>
-        <a class="nav-item" data-page="timetable" href="#timetable"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 17h.01M12 17h.01"/></svg></span>Timetable</a>
-        <a class="nav-item" data-page="calendar" href="#calendar"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18M8 14h.01M12 14h.01M16 14h.01"/></svg></span>Calendar</a>
-        <a class="nav-item" data-page="exams" href="#exams"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>Exams</a>
-        <a class="nav-item" data-page="gpa" href="#gpa"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3 3 8l9 5 9-5-9-5Z"/><path d="m7 10.2 5 2.8 5-2.8M5 9v6l7 4 7-4V9"/></svg></span>GPA calculator</a>
-        <a class="nav-item" data-page="planner" href="#planner"><span class="nav-icon">✦</span>Smart Study Planner</a>
-        <a class="nav-item" data-page="overview" href="#overview"><span class="nav-icon">▤</span>Semester Overview</a>
-        <a class="nav-item" data-page="academics" href="#academics"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m3 9 9-6 9 6H3Zm2 2v8m7-8v8m7-8v8M3 21h18"/></svg></span>University & semesters</a>
+      <nav class="nav-list" aria-label="Workspace">
+        <a class="nav-item" data-page="dashboard" href="#dashboard"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></span><span class="nav-label">Dashboard</span></a>
+        <a class="nav-item" data-page="courses" href="#courses"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 5c4-2 6-2 9 0 3-2 5-2 9 0v15c-4-2-6-2-9 0-3-2-5-2-9 0V5Zm9 0v15"/></svg></span><span class="nav-label">My Courses</span></a>
+        <a class="nav-item" data-page="calendar" href="#calendar"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4m8-4v4M3 11h18"/></svg></span><span class="nav-label">Calendar</span></a>
+        <a class="nav-item" data-page="assignments" href="#assignments"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="5" y="4" width="15" height="17" rx="2"/><path d="m8 12 3 3 6-6"/></svg></span><span class="nav-label">Assignments</span></a>
+        <a class="nav-item" data-page="grades" href="#grades"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 4v16h17M8 15l4-5 4 2 4-7"/></svg></span><span class="nav-label">Grades</span></a>
+        <a class="nav-item" data-page="profile" href="#profile"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span class="nav-label">Student Profile</span></a>
       </nav>
       <div class="sidebar-bottom">
-        <a class="nav-item" data-page="settings" href="#settings"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.4 1.1-1.4 2.4-1.7-.7a8 8 0 0 1-1.7 1l-.3 1.8h-2.8l-.3-1.8a8 8 0 0 1-1.7-1l-1.7.7-1.4-2.4L5.3 15a8 8 0 0 1 0-2l-1.4-1.1 1.4-2.4 1.7.7a8 8 0 0 1 1.7-1L9 7.4h2.8l.3 1.8a8 8 0 0 1 1.7 1l1.7-.7 1.4 2.4-1.4 1.1a8 8 0 0 1-.1 2Z" transform="translate(1 -1)"/></svg></span>Settings</a>
-        <a class="nav-item" data-page="profile" href="#profile"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span>Student profile</a>
-        <a class="nav-item" data-page="about" href="#about"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></svg></span>About ACADELY</a>
+        <a class="nav-item" data-page="planner" href="#planner"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l4 2"/></svg></span><span class="nav-label">Study plan</span></a>
+        <a class="nav-item" data-page="settings" href="#settings"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v3m0 14v3M2 12h3m14 0h3M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2"/></svg></span><span class="nav-label">Settings</span></a>
         <div class="sidebar-divider"></div>
         <button class="profile-button" type="button" aria-label="Open student profile">
           <span class="avatar">S</span><span class="profile-copy"><strong>Student</strong><small>Local profile · not verified</small></span><span class="more-icon">···</span>
@@ -63,7 +59,7 @@
         <button class="mobile-menu" id="menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false"><span></span><span></span><span></span></button>
         <button class="sidebar-collapse-toggle" id="sidebar-collapse-toggle" type="button" aria-label="Collapse sidebar" title="Collapse sidebar"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 9l-3 3 3 3"/></svg></button>
         <div class="breadcrumb"><span>Workspace</span><span class="crumb-sep">/</span><strong>Dashboard</strong></div>
-        <div class="topbar-actions"><span class="today-label" id="top-date"></span><button class="icon-button theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" title="Switch to light mode"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg></button><button class="icon-button" type="button" aria-label="Notifications" title="Notifications"><svg viewBox="0 0 24 24"><path d="M18 9a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><i></i></button><span class="top-avatar">S</span></div>
+        <div class="topbar-actions"><span class="today-label" id="top-date"></span><button class="icon-button theme-toggle" id="theme-toggle" type="button" aria-label="Switch to light mode" title="Switch to light mode"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg></button><button class="top-avatar" type="button" aria-label="Open student profile" data-action="ux-profile">S</button></div>
       </header>
       <div class="network-status" id="network-status" role="status" aria-live="polite" hidden></div>
       <div class="cloud-status" id="cloud-status" role="status" aria-live="polite" hidden></div>
