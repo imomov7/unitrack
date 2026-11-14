@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.5.1';
+const APP_VERSION = '1.5.2';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo', email: 'imomovabdullo009@gmail.com' });
 const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, courses: myCourses, history: academicHistory };
 const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA Calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
@@ -1627,6 +1627,12 @@ document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(window
 render();
 initializeAccountService();
 
+// Refresh date labels when safe; editable forms keep their existing DOM and values.
+function refreshLanguageView() {
+  document.querySelector('.today-label')?.replaceChildren(new Date().toLocaleDateString(window.AcadelyI18n.locale,{weekday:'long',month:'long',day:'numeric'}));
+  if (!appShell.hidden && !content.querySelector('form')) render();
+}
+
 // Display-only protection: localisation never rewrites academic or profile values.
 function acadelyProtectedText() {
  const values=new Set();
@@ -1635,6 +1641,4 @@ function acadelyProtectedText() {
  for(const key of ['university','semester'])if(data.settings[key])values.add(data.settings[key]);
  return values;
 };
-window.addEventListener('acadely-language-changed',()=>{
- document.querySelector('.today-label')?.replaceChildren(new Date().toLocaleDateString(window.AcadelyI18n.locale,{weekday:'long',month:'long',day:'numeric'}));
-});
+window.addEventListener('acadely-language-changed',refreshLanguageView);

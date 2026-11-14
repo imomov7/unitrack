@@ -119,3 +119,7 @@ The top Dashboard breadcrumb is an internal `#dashboard` link. It returns to the
 Static assets now use network-first loading with the installed static cache as an offline fallback, preventing stale app code from being combined with new HTML. An inline startup compatibility guard also supports visitors whose previous worker is still active during the update.
 
 A relative URL bug in static cache writes was corrected, and cache-write failures no longer discard fresh network responses. The existing update notice is available on the sign-in screen too, so installed clients can apply a waiting worker without first signing in.
+
+## Global language options (1.5.2)
+
+English, العربية and Русский buttons are available in a compact top bar on every page, including sign-in, registration, password recovery and loading screens. They reuse the same language preference as Settings, update the current interface in place, and keep entered form values. The active button and Settings selector stay synchronized. The existing data and auth session are unchanged. Cache v13 includes this UI update.
