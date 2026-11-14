@@ -94,7 +94,31 @@
   const select=document.querySelector?.('#interface-language');if(select)select.value=language;
  }
  function set(next){language=supported.includes(next)?next:'en';try{localStorage.setItem(key,language);}catch{}document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';syncControls();apply();root.dispatchEvent(new CustomEvent('acadely-language-changed',{detail:language}));}
- function start(){document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';syncControls();document.addEventListener('click',event=>{const button=event.target.closest('[data-language]');if(button&&supported.includes(button.dataset.language))set(button.dataset.language);});observer=new MutationObserver(records=>{const scopes=new Set();for(const r of records){if(r.type==='childList')r.addedNodes.forEach(n=>scopes.add(n));else scopes.add(r.target);}for(const scope of scopes)if(scope.isConnected)apply(scope);});apply();}
+ function closeLanguageMenus(returnFocus=false){
+  for(const menu of document.querySelectorAll('[data-language-menu]')){
+   if(menu.hidden)continue;menu.hidden=true;
+   const toggle=menu.closest('[data-language-picker]').querySelector('[data-language-toggle]');toggle.setAttribute('aria-expanded','false');if(returnFocus)toggle.focus();
+  }
+ }
+ function handleLanguageClick(event){
+  const toggle=event.target.closest('[data-language-toggle]');
+  if(toggle){const menu=toggle.closest('[data-language-picker]').querySelector('[data-language-menu]');const opening=menu.hidden;closeLanguageMenus();menu.hidden=!opening;toggle.setAttribute('aria-expanded',String(opening));if(opening)(menu.querySelector('[aria-pressed="true"]')||menu.querySelector('[data-language]'))?.focus();return;}
+  const option=event.target.closest('[data-language]');
+  if(option&&supported.includes(option.dataset.language)){closeLanguageMenus(true);set(option.dataset.language);return;}
+  closeLanguageMenus();
+ }
+ function handleLanguageKey(event){
+  if(event.key==='Escape'){closeLanguageMenus(true);return;}
+  const menu=event.target.closest('[data-language-menu]');if(!menu||menu.hidden||!['ArrowDown','ArrowUp','Home','End'].includes(event.key))return;
+  const options=[...menu.querySelectorAll('[data-language]')],index=options.indexOf(document.activeElement);event.preventDefault();
+  options[event.key==='Home'?0:event.key==='End'?options.length-1:(index+(event.key==='ArrowDown'?1:-1)+options.length)%options.length]?.focus();
+ }
+ function start(){
+  document.documentElement.lang=language;document.documentElement.dir=language==='ar'?'rtl':'ltr';syncControls();
+  document.addEventListener('click',handleLanguageClick);document.addEventListener('keydown',handleLanguageKey);
+  observer=new MutationObserver(records=>{const scopes=new Set();for(const r of records){if(r.type==='childList')r.addedNodes.forEach(n=>scopes.add(n));else scopes.add(r.target);}for(const scope of scopes)if(scope.isConnected)apply(scope);});apply();
+ }
+
  root.AcadelyI18n={t:translate,apply,set,get language(){return language;},get locale(){return language;}};
  const originalConfirm=root.confirm?.bind(root);if(originalConfirm)root.confirm=message=>originalConfirm(translate(message));
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();

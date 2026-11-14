@@ -9,7 +9,7 @@ test('workspace cannot paint before CSS or authentication finishes loading',()=>
  assert.match(html,/<div class="app-shell" hidden>/);assert.match(html,/<main id="auth-screen"[^>]* hidden/);assert.match(html,/<section id="app-boot"/);
  assert.ok(html.indexOf('[hidden]{display:none!important}')<html.indexOf('rel="stylesheet"'));assert.match(html,/<noscript>/);
  const shell={hidden:true},boot={hidden:false,setAttribute(n){if(n==='hidden')this.hidden=true;}},auth={hidden:true,innerHTML:''};
- const c=vm.createContext({document:{querySelector:s=>s==='.app-shell'?shell:s==='#app-boot'?boot:null},authScreen:auth,authMarkup:()=>'<h1>Connecting</h1>'});vm.runInContext(functionSource('showAuth'),c);vm.runInContext(functionSource('showAcadelyApp'),c);
+ const c=vm.createContext({document:{querySelector:s=>s==='.app-shell'?shell:s==='#app-boot'?boot:null},authScreen:auth,authMarkup:()=>'<h1>Connecting</h1>',syncTheme(){}});vm.runInContext(functionSource('showAuth'),c);vm.runInContext(functionSource('showAcadelyApp'),c);
  c.showAuth('loading');assert.equal(shell.hidden,true);assert.equal(auth.hidden,false);assert.equal(boot.hidden,true);
  c.showAuth('login');assert.equal(shell.hidden,true);
  c.showAcadelyApp();assert.equal(shell.hidden,false);assert.equal(auth.hidden,true);
@@ -34,10 +34,13 @@ test('static assets use fresh code online, cached code offline, and never cache 
  handlers.get('fetch')(event());assert.equal(await(await intercepted).text(),'fresh app');assert.equal(putBody,'fresh app');offline=true;handlers.get('fetch')(event());assert.equal(await(await intercepted).text(),'cached app');
  let privateIntercepted=false;handlers.get('fetch')({request:new Request('https://private.supabase.co/rest/v1/student_workspaces'),respondWith:()=>{privateIntercepted=true;}});assert.equal(privateIntercepted,false);
 });
-test('language options are outside auth and workspace, with native labels and non-submit buttons',()=>{
- const start=html.indexOf('<nav class="language-bar"');const end=html.indexOf('</nav>',start);const bar=html.slice(start,end);
- assert.ok(start>0&&end<html.indexOf('<main id="auth-screen"'));assert.ok(end<html.indexOf('<div class="app-shell"'));
- for(const [code,label]of [['en','English'],['ar','العربية'],['ru','Русский']])assert.match(bar,new RegExp(`type="button" data-language="${code}"[^>]*>${label}<`));
+test('language icon shares existing controls and its three choices start collapsed',()=>{
+ assert.doesNotMatch(html,/class="language-bar"|--language-bar-height/);
+ assert.match(html,/id="theme-toggle" data-theme-toggle[\s\S]*?id="header-language-control"[\s\S]*?class="top-avatar"/);
+ const c=vm.createContext({window:{AcadelyI18n:{language:'ru'}},esc:v=>String(v)});vm.runInContext(functionSource('languagePickerMarkup'),c);const markup=c.languagePickerMarkup('test-language-menu');
+ assert.match(markup,/aria-expanded="false"/);assert.match(markup,/data-language-menu[^>]* hidden/);
+ for(const label of ['English','العربية','Русский'])assert.ok(markup.includes(label));
+ assert.match(app,/class="auth-utilities"[\s\S]*?languagePickerMarkup\('auth-language-menu'\)/);
 });
 test('global language buttons and the Settings selector share the saved preference',()=>{
  const buttons=['en','ar','ru'].map(language=>({dataset:{language},setAttribute(name,value){this[name]=value;}}));const select={value:'en'};const saved=new Map();

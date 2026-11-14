@@ -123,3 +123,7 @@ A relative URL bug in static cache writes was corrected, and cache-write failure
 ## Global language options (1.5.2)
 
 English, العربية and Русский buttons are available in a compact top bar on every page, including sign-in, registration, password recovery and loading screens. They reuse the same language preference as Settings, update the current interface in place, and keep entered form values. The active button and Settings selector stay synchronized. The existing data and auth session are unchanged. Cache v13 includes this UI update.
+
+## Compact language menu (1.5.3)
+
+The separate language toolbar has been removed. A translation icon beside the existing theme control opens English / العربية / Русский. Account screens place the same compact controls beside the logo. Selection persists and shares the Settings preference; outside click and Escape dismiss the menu, with keyboard focus and arrow-key support. No extra page/header layer or toolbar spacing is retained.

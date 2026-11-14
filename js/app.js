@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.5.2';
+const APP_VERSION = '1.5.3';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo', email: 'imomovabdullo009@gmail.com' });
 const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, courses: myCourses, history: academicHistory };
 const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA Calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
@@ -51,25 +51,28 @@ let currentPage = validRoute(location.hash.slice(1)) || 'dashboard';
 
 const appShell = document.querySelector('.app-shell');
 const sidebarToggle = document.querySelector('#sidebar-collapse-toggle');
-const themeToggle = document.querySelector('#theme-toggle');
 const themeMeta = document.querySelector('meta[name="theme-color"]');
 function syncTheme() {
   const light = document.documentElement.dataset.theme === 'light';
+  document.querySelectorAll('[data-theme-toggle]').forEach(themeToggle=>{
   themeToggle.setAttribute('aria-label', `Switch to ${light ? 'dark' : 'light'} mode`);
   themeToggle.title = `Switch to ${light ? 'dark' : 'light'} mode`;
   themeToggle.innerHTML = light
     ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 13A8.5 8.5 0 0 1 11 3.2 8.6 8.6 0 1 0 20.8 13Z"/></svg>'
     : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
+  });
   themeMeta.content = light ? '#F7F8FC' : '#14213D';
 }
 try { if (localStorage.getItem('acadely-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch { /* Theme preference is optional when browser storage is unavailable. */ }
-themeToggle.addEventListener('click', () => {
+document.addEventListener('click', event => {
+  if(!event.target.closest('[data-theme-toggle]'))return;
   const light = document.documentElement.dataset.theme !== 'light';
   document.documentElement.dataset.theme = light ? 'light' : 'dark';
   try { localStorage.setItem('acadely-theme', light ? 'light' : 'dark'); } catch { /* Keep theme switching available for this session. */ }
   syncTheme();
 });
 syncTheme();
+document.querySelector('#header-language-control').innerHTML=languagePickerMarkup('header-language-menu');
 try {
   if (localStorage.getItem('acadely-sidebar-collapsed') === 'true') appShell.classList.add('sidebar-collapsed');
 } catch { /* Sidebar preference is optional when browser storage is unavailable. */ }
@@ -272,6 +275,11 @@ function accountSyncSummary() {
   return messages[document.querySelector('#cloud-status')?.dataset.state || (cloudReady ? 'synced' : 'local')];
 }
 
+function languagePickerMarkup(menuId) {
+  const selected=window.AcadelyI18n?.language||'en';
+  return `<div class="language-picker" data-language-picker><button class="icon-button language-toggle" type="button" data-language-toggle aria-label="Language" title="Language" aria-expanded="false" aria-controls="${esc(menuId)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h12M9 3v2M5 5c1 5 4 8 9 11M13 5c-1 5-4 9-10 12m11 4 4-10 4 10m-6-3h4"/></svg></button><div class="language-menu" id="${esc(menuId)}" data-language-menu role="group" aria-label="Language" hidden>${[['en','English'],['ar','العربية'],['ru','Русский']].map(([value,label])=>`<button type="button" data-language="${value}" lang="${value}" dir="${value==='ar'?'rtl':'ltr'}" translate="no" aria-pressed="${value===selected}">${label}</button>`).join('')}</div></div>`;
+}
+
 function authMarkup(mode = 'login', feedback = '') {
   const intro = {
     loading: ['Connecting your Acadely account', 'Your local academic data stays on this device while Acadely checks your account.'],
@@ -294,7 +302,7 @@ function authMarkup(mode = 'login', feedback = '') {
   if (mode === 'message') form = `<button class="button button-primary" type="button" data-auth-view="login">Back to sign in</button>`;
   const error = feedback && !['verify', 'message'].includes(mode) ? `<p class="auth-feedback" role="alert">${esc(feedback)}</p>` : '';
   const resendLink = mode === 'login' && /email not confirmed/i.test(feedback) ? '<button class="auth-link" type="button" data-auth-view="resend">Resend confirmation email</button>' : '';
-  return `<section class="auth-card"><img class="auth-logo" src="assets/branding/acadely-logo-white.svg" alt="ACADELY"><p class="eyebrow">YOUR ACADEMIC WORKSPACE</p><h1>${esc(intro[0])}</h1><p class="auth-description">${esc(intro[1])}</p>${error}${resendLink}${form}<small class="auth-privacy">Your account password is handled by Supabase Authentication. Acadely never stores it in app data.</small></section>`;
+  return `<section class="auth-card"><div class="auth-utilities"><button class="icon-button theme-toggle" data-theme-toggle type="button" aria-label="Switch to dark mode"></button>${languagePickerMarkup('auth-language-menu')}</div><img class="auth-logo" src="assets/branding/acadely-logo-white.svg" alt="ACADELY"><p class="eyebrow">YOUR ACADEMIC WORKSPACE</p><h1>${esc(intro[0])}</h1><p class="auth-description">${esc(intro[1])}</p>${error}${resendLink}${form}<small class="auth-privacy">Your account password is handled by Supabase Authentication. Acadely never stores it in app data.</small></section>`;
 }
 
 function showAuth(mode, feedback = '') {
@@ -302,6 +310,7 @@ function showAuth(mode, feedback = '') {
   authView = mode;
   authFeedback = feedback;
   authScreen.innerHTML = authMarkup(mode, feedback);
+  syncTheme();
   authScreen.hidden = false;
   document.querySelector('.app-shell').hidden = true;
 }
