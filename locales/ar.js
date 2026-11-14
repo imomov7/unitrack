@@ -732,5 +732,7 @@ window.ACADELY_AR = {
   "Next day": "اليوم التالي",
   "Saving to your Acadely account…": "جارٍ الحفظ في حساب Acadely…",
   "Cloud sync failed. Changes are saved on this device until the connection returns.": "فشلت المزامنة السحابية. تُحفظ التغييرات على هذا الجهاز حتى عودة الاتصال.",
-  "A newer version exists on another device. Your local edits are still saved here; export a backup before loading the cloud copy.": "توجد نسخة أحدث على جهاز آخر. تعديلاتك المحلية محفوظة هنا؛ صدّر نسخة احتياطية قبل تحميل النسخة السحابية."
+  "A newer version exists on another device. Your local edits are still saved here; export a backup before loading the cloud copy.": "توجد نسخة أحدث على جهاز آخر. تعديلاتك المحلية محفوظة هنا؛ صدّر نسخة احتياطية قبل تحميل النسخة السحابية.",
+  "Russian": "الروسية",
+  "or": "أو"
 };
