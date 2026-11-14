@@ -3,10 +3,10 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.4.1';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo', email: 'imomovabdullo009@gmail.com' });
 const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, courses: myCourses, history: academicHistory };
-const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
+const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA Calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
 const content = document.querySelector('.page-content');
 const toast = document.querySelector('#toast');
 const authScreen = document.querySelector('#auth-screen');
@@ -27,6 +27,7 @@ let accountUser = null;
 let cloudProfileChannel = null;
 let profileCloudReady = false;
 let profileSaveInProgress = false;
+let profileFormBusy = false;
 let cloudRevision = 0;
 let cloudReady = false;
 let localChangeVersion = 0;
@@ -220,7 +221,7 @@ function assignments() {
 
 function gradePage() {
   const courseOptions = data.courses.map((course) => `<option value="${esc(course.id)}">${esc(course.name)}</option>`).join('');
-  return `${pageHeader('Grades', 'See your marks and find out what you need next.', button('Add assessment', 'add', 'primary', 'data-kind="assessment"'))}${gradeSummaryStrip()}${data.courses.length ? `<details class="disclosure"><summary>What do I need to reach my target grade?</summary><section class="form-panel"><form id="whatif-form" class="inline-form"><label>Course<select name="courseId" required>${courseOptions}</select></label><label>Target final grade (%)<input name="target" type="number" min="0" max="100" step="any" value="90" required></label><label>Hypothetical average on remaining work (%)<input name="hypothetical" type="number" min="0" max="100" step="any" placeholder="Optional"></label><button class="button button-primary">Calculate</button></form><div id="whatif-result" class="result-box" aria-live="polite">Choose a course with assessment marks to calculate what you need.</div></section></details>` : card('Start with a course', 'Add a course before entering assessments or using what-if calculations.', empty('No courses yet', 'Create your first course to continue.', 'course'))}${card('Assessments', 'Marks are weighted using each assessment’s share of its course', data.assessments.length ? data.assessments.map((item) => `<div class="data-row"><div><strong>${esc(item.title)} · ${esc(courseName(item.courseId))}</strong><small>${item.score}/${item.max} marks · ${item.weight}% course weight</small></div><div class="row-actions"><button data-action="edit" data-kind="assessments" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="assessments" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No assessments yet', 'Add an assessment to track a course grade.', data.courses.length ? 'assessment' : 'course'))}`;
+  return `${pageHeader('Grades', 'See your marks and find out what you need next.', `<div class="row-actions"><a class="button button-secondary" href="#gpa">GPA Calculator</a>${button('Add assessment', 'add', 'primary', 'data-kind="assessment"')}</div>`)}${gradeSummaryStrip()}${data.courses.length ? `<details class="disclosure"><summary>What do I need to reach my target grade?</summary><section class="form-panel"><form id="whatif-form" class="inline-form"><label>Course<select name="courseId" required>${courseOptions}</select></label><label>Target final grade (%)<input name="target" type="number" min="0" max="100" step="any" value="90" required></label><label>Hypothetical average on remaining work (%)<input name="hypothetical" type="number" min="0" max="100" step="any" placeholder="Optional"></label><button class="button button-primary">Calculate</button></form><div id="whatif-result" class="result-box" aria-live="polite">Choose a course with assessment marks to calculate what you need.</div></section></details>` : card('Start with a course', 'Add a course before entering assessments or using what-if calculations.', empty('No courses yet', 'Create your first course to continue.', 'course'))}${card('Assessments', 'Marks are weighted using each assessment’s share of its course', data.assessments.length ? data.assessments.map((item) => `<div class="data-row"><div><strong>${esc(item.title)} · ${esc(courseName(item.courseId))}</strong><small>${item.score}/${item.max} marks · ${item.weight}% course weight</small></div><div class="row-actions"><button data-action="edit" data-kind="assessments" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="assessments" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No assessments yet', 'Add an assessment to track a course grade.', data.courses.length ? 'assessment' : 'course'))}`;
 }
 
 function timetable() {
@@ -249,7 +250,7 @@ function gpa() {
   const result = gpaSummary();
   const title = result.value === null ? '—' : result.value.toFixed(2);
   const status = result.value === null ? 'Enter a grade to calculate GPA' : `${result.estimated ? 'Estimated current GPA' : 'Final GPA'} · ${Number(data.settings.maxGpa).toFixed(2)} point scale`;
-  return `${pageHeader('Semester GPA', 'Record final grades or calculate them from weighted assessments.')}${gradeSummaryStrip()}${card('Your courses', 'Each course is counted once. Choose a final grade or assessment tracking.', data.courses.length ? `<div class="gpa-course-list">${data.courses.map((course) => gpaCourseRow(course, result)).join('')}</div>` : empty('No courses yet', 'Add your first course to get started.', 'course'))}<details class="disclosure"><summary>How is GPA calculated?</summary>${card('How GPA works', 'Transparent, credit-weighted calculation', `<p class="helper-text">GPA = total of (course GPA points × course credits) ÷ total graded course credits. Ungraded courses and courses with zero or invalid credits are not included. Assessment grades show an estimate until the full course weight is entered; missing work may change the final result.</p><a class="text-link" href="#settings">Review your grade scale ↗</a>`)}</details>`;
+  return `${pageHeader('GPA Calculator', 'Enter course grades and credits. Your semester GPA updates when you save.')}${gpaCalculatorSummary()}${card('Your courses', 'Each course is counted once. Choose a final grade or assessment tracking.', data.courses.length ? `<div class="gpa-course-list">${data.courses.map((course) => gpaCourseRow(course, result)).join('')}</div>` : empty('No courses yet', 'Add your first course to get started.', 'course'))}<details class="disclosure"><summary>How is GPA calculated?</summary>${card('How GPA works', 'Transparent, credit-weighted calculation', `<p class="helper-text">GPA = total of (course GPA points × course credits) ÷ total graded course credits. Ungraded courses and courses with zero or invalid credits are not included. Assessment grades show an estimate until the full course weight is entered; missing work may change the final result.</p><a class="text-link" href="#settings">Review your grade scale ↗</a>`)}</details>`;
 }
 
 function settings() {
@@ -391,6 +392,7 @@ function withProfileIdentity(user, profile) {
 }
 
 async function refreshAccountProfile(user) {
+  const versionAtRead=localChangeVersion;
   let profileRecord;
   try {
     profileRecord = await window.AcadelyCloudService.getOrCreateProfile(user);
@@ -402,7 +404,7 @@ async function refreshAccountProfile(user) {
   if (!accountUser || accountUser.id !== user.id) return;
   accountUser = withProfileIdentity(user, profileRecord);
   if (profileCloudReady && cloudReady) attachWorkspaceRealtime(user.id);
-  if (profileSaveInProgress) { syncProfileDisplay(); return; }
+  if (profileSaveInProgress || localChangeVersion!==versionAtRead || localChangeVersion>lastSyncedChangeVersion) { syncProfileDisplay(); return; }
   const nextProfile = mergedAccountStudentProfile(accountUser, profileRecord);
   if (stableJson(nextProfile) !== stableJson(data.studentProfile)) {
     data.studentProfile = nextProfile;
@@ -446,8 +448,10 @@ async function activateAccount(user) {
       profileCloudReady = false;
       profileRecord = { full_name: user.user_metadata?.full_name || '', email: user.email || '', student_data: {} };
     }
+    if(accountUser?.id!==user.id){activatingAccountId=null;return;}
     accountUser = withProfileIdentity(user, profileRecord);
     const workspace = await window.AcadelyCloudService.loadWorkspace();
+    if(accountUser?.id!==user.id){activatingAccountId=null;return;}
     let pendingCache=null;
     try { pendingCache=JSON.parse(localStorage.getItem(cloudCacheKey(user.id)) || 'null'); } catch { /* Ignore an invalid cache. */ }
     if (pendingCache?.dirty && pendingCache.data) {
@@ -500,6 +504,7 @@ async function activateAccount(user) {
     setCloudStatus(localChangeVersion > lastSyncedChangeVersion ? 'syncing' : 'synced');
     attachWorkspaceRealtime(user.id);
   } catch (error) {
+    if(accountUser?.id!==user.id){activatingAccountId=null;return;}
     cloudReady = false;
     let cached = null;
     try { cached = JSON.parse(localStorage.getItem(cloudCacheKey(user.id)) || 'null'); } catch { /* Ignore a damaged account cache. */ }
@@ -535,9 +540,10 @@ async function onRemoteWorkspaceChange(payload) {
     return;
   }
   const versionAtRead = localChangeVersion;
+  const expectedUserId=accountUser.id;
   try {
     const latest = await window.AcadelyCloudService.loadWorkspace();
-    if (!latest || !accountUser) return;
+    if (!latest || accountUser?.id!==expectedUserId) return;
     if (localChangeVersion !== versionAtRead || localChangeVersion > lastSyncedChangeVersion) {
       cloudConflict = true;
       cloudReady = false;
@@ -569,7 +575,9 @@ function attachWorkspaceRealtime(userId) {
 
 function onRemoteProfileChange(payload) {
   if (!accountUser || payload?.new?.user_id !== accountUser.id) return;
-  accountUser = { ...accountUser, email: payload.new.email || accountUser.email, user_metadata: { ...accountUser.user_metadata, full_name: payload.new.full_name || accountUser.user_metadata?.full_name } };
+  if(profileSaveInProgress || localChangeVersion>lastSyncedChangeVersion)return;
+  if(payload.new.email && payload.new.email!==accountUser.email){refreshAccountProfile(accountUser).catch(()=>{});return;}
+  accountUser = { ...accountUser, user_metadata: { ...accountUser.user_metadata, full_name: payload.new.full_name || accountUser.user_metadata?.full_name } };
   const nextProfile = mergedAccountStudentProfile(accountUser, payload.new);
   if (stableJson(nextProfile) === stableJson(data.studentProfile)) return;
   data.studentProfile = nextProfile;
@@ -1092,6 +1100,8 @@ function render() {
   if (count) count.textContent = data.assignments.filter((item) => !item.done).length;
   document.querySelector('.breadcrumb strong').textContent = labels[currentPage] || 'Dashboard';
   content.innerHTML = contextNavigation(currentPage) + views[currentPage]();
+  content.setAttribute('aria-busy','false');
+  window.dispatchEvent(new Event('acadely-rendered'));
   bindPage();
   syncProfileDisplay();
 }
@@ -1130,6 +1140,20 @@ function resizeProfilePicture(file) {
 }
 
 async function saveStudentProfile(event) {
+  event.preventDefault();
+  if(profileFormBusy)return;
+  profileFormBusy=true;
+  const button=event.currentTarget.querySelector('button[type="submit"]');
+  if(button){button.disabled=true;button.textContent='Saving profile…';}
+  try {await persistStudentProfile(event);}
+  finally {
+    profileFormBusy=false;
+    const current=document.querySelector('#student-profile-form button[type="submit"]');
+    if(current){current.disabled=false;current.textContent='Save profile';}
+  }
+}
+
+async function persistStudentProfile(event) {
   event.preventDefault(); const fields = new FormData(event.currentTarget);
   const pictureFile = fields.get('profilePictureFile');
   let profilePicture = data.studentProfile.profilePicture || '';
@@ -1159,7 +1183,7 @@ async function saveStudentProfile(event) {
 
 async function syncStudentProfileToAccount(successMessage = 'Student profile synced across your devices.') {
   if (!accountUser) return;
-  if (!profileCloudReady) return msg('Your student profile is saved with the workspace. Run the updated Supabase setup SQL to sync the profile record too.');
+  if (!profileCloudReady) return msg('Your profile is saved with your academic workspace. Account profile sync is unavailable right now.');
   profileSaveInProgress = true;
   try {
     const result = await window.AcadelyCloudService.saveStudentProfile(accountUser.id, data.studentProfile);
@@ -1177,7 +1201,7 @@ async function syncStudentProfileToAccount(successMessage = 'Student profile syn
 function formFields(kind, record = {}) {
   const courses = selectCourses(record.courseId || '', kind === 'assessment');
   const fields = {
-    course: `<label>Course code<input name="code" value="${esc(record.code || '')}" maxlength="30" placeholder="e.g. GCIS-123"></label><label>Course name<input name="name" value="${esc(record.name || '')}" required maxlength="100" autocomplete="off"></label><label>Credit hours<input name="credits" type="number" min="0.1" max="100" step="0.1" value="${record.credits ?? 3}" required></label><label>Professor (optional)<input name="professor" value="${esc(record.professor || '')}" maxlength="120"></label>`,
+    course: `<label>Course code<input name="code" value="${esc(record.code || '')}" maxlength="30" placeholder="e.g. GCIS-123"></label><label>Course name<input name="name" value="${esc(record.name || '')}" required maxlength="100" autocomplete="off"></label><label>Credit hours<input name="credits" type="number" min="0.1" max="100" step="0.1" value="${record.credits ?? ''}" required placeholder="Credits from your syllabus"></label><label>Professor (optional)<input name="professor" value="${esc(record.professor || '')}" maxlength="120"></label>`,
     assignment: `<label>Title<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Description<input name="description" value="${esc(record.description || '')}" maxlength="240"></label><label>Due date<input name="due" type="date" value="${esc(record.due || '')}"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="${record.studyHours ?? 2}" required></label><label>Priority<select name="priority">${['Low', 'Medium', 'High'].map((value) => `<option ${record.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`,
     assessment: `<label>Assessment name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId" required>${courses}</select></label><div class="two-fields"><label>Score<input name="score" type="number" min="0" step="any" value="${record.score ?? ''}" required></label><label>Maximum marks<input name="max" type="number" min="0.01" step="any" value="${record.max ?? 100}" required></label></div><label>Course weight (%)<input name="weight" type="number" min="0.01" max="100" step="any" value="${record.weight ?? ''}" required></label>`,
     class: `<label>Course<select name="courseId" required>${courses}</select></label><fieldset class="class-days"><legend>Class days</legend>${DAYS.map(day => `<label><input type="checkbox" name="days" value="${day}" ${(record.days || [record.day || 'Monday']).includes(day) ? 'checked' : ''}>${day.slice(0,3)}</label>`).join('')}</fieldset><div class="two-fields"><label>Start<input type="time" name="start" value="${esc(record.start || '')}" required></label><label>End<input type="time" name="end" value="${esc(record.end || '')}" required></label></div><label>Room or location<input name="location" value="${esc(record.location || '')}" maxlength="100"></label>`,

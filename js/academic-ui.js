@@ -4,8 +4,15 @@ function loadAcademicData(name, globalName) {
   if (academicDataPromises.has(name)) return academicDataPromises.get(name);
   const promise = new Promise((resolve,reject)=>{
     const script=document.createElement('script');script.src=`assets/data/${name}.js`;
-    script.onload=()=>{if(Array.isArray(window[globalName]) && window[globalName].length) resolve(window[globalName]); else {academicDataPromises.delete(name); reject(new Error('Directory unavailable'));}};
-    script.onerror=()=>{academicDataPromises.delete(name);reject(new Error('Directory unavailable'));};
+    let finished=false;
+    const fail=()=>{if(finished)return;finished=true;clearTimeout(timeout);script.remove();academicDataPromises.delete(name);reject(new Error('Directory unavailable'));};
+    const timeout=setTimeout(fail,8000);
+    script.onload=()=>{
+      if(finished)return;
+      if(!Array.isArray(window[globalName]) || !window[globalName].length){fail();return;}
+      finished=true;clearTimeout(timeout);script.remove();resolve(window[globalName]);
+    };
+    script.onerror=fail;
     document.head.append(script);
   });
   academicDataPromises.set(name,promise);return promise;
