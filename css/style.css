@@ -757,3 +757,18 @@ html[dir="rtl"] .calendar-arrow, html[dir="rtl"] .sidebar-collapse-toggle svg { 
 .breadcrumb-home:hover { color:var(--accent);text-decoration:underline; }
 .breadcrumb-home:focus-visible { outline:2px solid var(--accent);outline-offset:3px;border-radius:3px; }
 .breadcrumb strong { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
+
+/* One language toolbar remains available before and after authentication. */
+.language-bar { background:var(--bg);color:var(--text);border-bottom:1px solid var(--line-soft);font-family:var(--font);padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right)); }
+.language-options button:hover { background:var(--surface); }
+.language-options button[aria-pressed="true"] { background:var(--accent);color:var(--button-text,#fff); }
+.language-options button:focus-visible { outline:2px solid var(--accent);outline-offset:1px; }
+.sidebar { top:var(--language-bar-height,52px); }
+.app-shell,.main-content { min-height:calc(100vh - var(--language-bar-height,52px)); }
+.auth-screen,.boot-screen { min-height:calc(100vh - var(--language-bar-height,52px));min-height:calc(100svh - var(--language-bar-height,52px)); }
+@media(max-width:480px) { .language-bar { padding-inline:12px; } }
+
+/* The language bar now owns the top safe area; avoid counting it twice. */
+.sidebar { padding-top:25px; }
+.topbar { height:63px;padding-top:0; }
+@media(max-width:900px) { .topbar { height:59px; } }
