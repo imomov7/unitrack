@@ -1,5 +1,9 @@
 // Russian UI catalogue. Official names and user content are preserved.
 window.ACADELY_RU = {
+  "Acadely contact — not configured yet": "Контакт Acadely — пока не настроен",
+  "Review course name": "Проверьте название курса",
+  "Course name not provided": "Название курса не указано",
+
   "Dashboard": "Панель управления",
   "My Courses": "Мои курсы",
   "My courses": "Мои курсы",

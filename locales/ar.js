@@ -1,5 +1,9 @@
 // Arabic UI catalogue. Official names and user content are preserved.
 window.ACADELY_AR = {
+  "Acadely contact — not configured yet": "التواصل مع Acadely — لم يتم إعداده بعد",
+  "Review course name": "راجع اسم المقرر",
+  "Course name not provided": "لم يُدخل اسم المقرر",
+
   "Dashboard": "لوحة التحكم",
   "My Courses": "مقرراتي",
   "My courses": "مقرراتي",
