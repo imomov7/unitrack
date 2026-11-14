@@ -4,9 +4,45 @@
   const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const code = value => normalize(value).replace(/[^\p{L}\p{N}]/gu, '');
   function searchUniversities(rows, query) {
-    const q = normalize(query);
+    const q = normalize(query), compactQuery = code(q);
     if (!q) return [];
-    return rows.filter(row => normalize(row.name).includes(q)).sort((a,b) => Number(normalize(b.name).startsWith(q)) - Number(normalize(a.name).startsWith(q)) || a.name.localeCompare(b.name)).slice(0,20);
+    const seen = new Set();
+    return rows.filter(row => {
+      if (!row || typeof row.name !== 'string') return false;
+      const identity = normalize(row.name) + '|' + normalize(row.country);
+      if (seen.has(identity)) return false;
+      seen.add(identity); return true;
+    }).map(row => {
+      const name = normalize(row.name);
+      // Search-only indexes derived from the directory; never rename institutions.
+      const initials = name.split(/[^\p{L}\p{N}]+/u).filter(w => w && !['of','the','and','for','at','de','du','di'].includes(w)).map(w => w[0]).join('');
+      const domains = (row.domains || []).map(d => normalize(d).replace(/^www\./,'').split('.')[0]);
+      const aliases = [...(row.aliases || []).map(code), initials, ...domains];
+      const exactAlias = compactQuery.length > 1 && aliases.includes(compactQuery);
+      return {row, rank: exactAlias ? 0 : name.startsWith(q) ? 1 : 2,
+        matches: exactAlias || name.includes(q) || (compactQuery.length > 1 && aliases.some(a => a.startsWith(compactQuery)))};
+    }).filter(item => item.matches).sort((a,b) => a.rank-b.rank || a.row.name.localeCompare(b.row.name)).slice(0,20).map(item => item.row);
+  }
+  // Presentation only. Keep form values, persistence, identity matching and calculations raw.
+  function displaySemester(value) {
+    const raw = String(value || '').trim().replace(/\s+/g,' ');
+    return raw.replace(/^(fall|spring|summer|winter|autumn)(?: (?:smester|semester))?(?= (?:20\d{2})$|$)/i,
+      (_, term) => term[0].toUpperCase()+term.slice(1).toLowerCase()+' Semester');
+  }
+  function displayUniversity(value) {
+    const raw = String(value || '').trim().replace(/\s+/g,' ');
+    return /^rochester institue of technology$/i.test(raw) ? 'Rochester Institute of Technology' : raw;
+  }
+  function displayCourseCode(value) { return String(value || '').trim().replace(/\s+/g,' ').toUpperCase(); }
+  function displayCourseName(course) {
+    const name = String(course?.name || '').trim().replace(/\s+/g,' ');
+    if (!name) return 'Course name not provided';
+    // Short code-like entries remain identifiable, without guessing an official title.
+    return /^[a-z]{1,6}(?:[ -]?\d+)?$/i.test(name) ? name.toUpperCase() : name;
+  }
+  function displayCourse(course) {
+    const name = displayCourseName(course), label = displayCourseCode(course?.code);
+    return label && code(label)!==code(name) ? label+' — '+name : name;
   }
   function searchCourses(rows, query) {
     const compact = value => normalize(value).replace(/[\s._/–-]+/g,'');
@@ -50,6 +86,6 @@
     return requirements.filter(r=>r.code && !passed.has(code(r.code)) && !inProgress.has(code(r.code)) && !planned.has(code(r.code)))
       .map(r=>({ ...r, eligible:r.prerequisitesVerified===true && (r.prerequisites||[]).every(p=>prerequisiteMet(r,p)), reason:r.prerequisitesVerified!==true ? 'On your degree list. Confirm prerequisites with your adviser.' : (r.prerequisites||[]).every(p=>prerequisiteMet(r,p)) ? ((r.prerequisites||[]).length ? 'On your degree list; all listed prerequisites and recorded grade minima met.' : 'On your degree list; verified with no prerequisites.') : 'On your degree list; complete the listed prerequisites first.' }));
   }
-  root.AcadelyPlanning = {searchUniversities,searchCourses,searchMajors,classOccurs,semesterGpa,cumulativeGpa,recommend,code};
+  root.AcadelyPlanning = {searchUniversities,searchCourses,searchMajors,displaySemester,displayUniversity,displayCourseCode,displayCourseName,displayCourse,classOccurs,semesterGpa,cumulativeGpa,recommend,code};
   if (typeof module !== 'undefined' && module.exports) module.exports = root.AcadelyPlanning;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

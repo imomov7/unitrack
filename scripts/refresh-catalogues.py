@@ -22,6 +22,13 @@ for n,url in sources.items():
  if n=='rit-curriculum':
   for row in re.findall(r'<tr\b[^>]*>.*?</tr>',source,re.S):
    codes=re.findall(r'data-code-bubble="([^"]+)"',row);hours=field(row,'hourscol');name=field(row,'titlecol')
+   # These three verified titles have curriculum annotations, not title text.
+   # Extract the entire TD first: field() otherwise stops at a nested </span>.
+   if len(codes)==1 and codes[0] in {'MATH-131','COMM-142','MATH-161'}:
+    title=re.search(r'<td\b[^>]*class="titlecol"[^>]*>(.*?)</td>',row,re.S)
+    if title:
+     clean=re.sub(r'\(\s*<span class="comment">.*?</span>\s*\)|<sup>.*?</sup>','',title[1],flags=re.S)
+     name=text(clean)
    if len(codes)==1 and re.fullmatch(r'\d+(\.\d+)?',hours) and float(hours)>0 and name:
     rows.append(dict(code=codes[0],name=name,credits=float(hours),creditUnit='semester credits'))
   groups.append(dict(universityNames=['Rochester Institute of Technology'],source='https://www.rit.edu/study/information-technology-bs',edition='2026–2027 · CIT curriculum subset',courses=rows))

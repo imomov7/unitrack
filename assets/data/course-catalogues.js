@@ -21,7 +21,7 @@ window.ACADELY_CATALOGUES = [
       },
       {
         "code": "MATH-131",
-        "name": "Discrete Mathematics ( fulfills General Education: Mathematical Perspective A",
+        "name": "Discrete Mathematics",
         "credits": 4.0,
         "creditUnit": "semester credits"
       },
@@ -39,7 +39,7 @@ window.ACADELY_CATALOGUES = [
       },
       {
         "code": "COMM-142",
-        "name": "Introduction to Technical Communication ( WI",
+        "name": "Introduction to Technical Communication",
         "credits": 3.0,
         "creditUnit": "semester credits"
       },
@@ -51,7 +51,7 @@ window.ACADELY_CATALOGUES = [
       },
       {
         "code": "MATH-161",
-        "name": "Applied Calculus ( fulfills General Education: Mathematical Perspective B",
+        "name": "Applied Calculus",
         "credits": 4.0,
         "creditUnit": "semester credits"
       },
