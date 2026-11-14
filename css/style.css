@@ -719,3 +719,34 @@ button.text-link { border:0; background:none; padding:0; cursor:pointer; }
 .gpa-results p { font-size:12px; color:var(--muted); line-height:1.6; }
 .gpa-input-help { margin-bottom:24px; }
 @media(max-width:600px) { .gpa-results { grid-template-columns:1fr; } .gpa-results>div+div { border-left:0; border-top:1px solid var(--line); } }
+
+/* Arabic follows the same layout and components, using logical direction. */
+html[dir="rtl"] body { text-align: right; }
+html[dir="rtl"] .sidebar { left: auto; right: 0; border-right: 0; border-left: 1px solid var(--line-soft); }
+html[dir="rtl"] .main-content { margin-left: 0; margin-right: var(--sidebar-width, 248px); }
+html[dir="rtl"] .nav-item.active { border-left-color: transparent; }
+html[dir="rtl"] input[type="email"], html[dir="rtl"] input[type="url"], html[dir="rtl"] input[name="code"], html[dir="rtl"] .course-code { direction: ltr; text-align: start; }
+html[dir="rtl"] .calendar-day { text-align: right; }
+html[dir="rtl"] .calendar-event, html[dir="rtl"] .university-option { text-align: right; }
+html[dir="rtl"] .search-field input { padding-inline: 14px; }
+html[dir="rtl"] .close-dialog { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] [data-official], [translate="no"] { unicode-bidi: isolate; }
+@media (max-width: 760px) {
+ html[dir="rtl"] .main-content { margin-right: 0; }
+ html[dir="rtl"] .sidebar { transform: translateX(100%); }
+ html[dir="rtl"] body.sidebar-open .sidebar { transform: translateX(0); }
+}
+html[dir="rtl"] .nav-count, html[dir="rtl"] .more-icon { margin-left: 0; margin-right: auto; }
+html[dir="rtl"] .profile-copy { margin-left: 0; margin-right: 10px; }
+html[dir="rtl"] .profile-button { text-align: right; }
+html[dir="rtl"] .app-shell.sidebar-collapsed .main-content { margin-left:0; margin-right:76px; }
+@media (min-width:901px) and (max-width:1100px) { html[dir="rtl"] .main-content { margin-right:220px; } }
+@media (max-width:900px) {
+ html[dir="rtl"] .main-content, html[dir="rtl"] .app-shell.sidebar-collapsed .main-content { margin-right:0; }
+ html[dir="rtl"] .sidebar { transform:translateX(100%); }
+ html[dir="rtl"] .sidebar.open { transform:translateX(0); }
+ html[dir="rtl"] .breadcrumb { margin-right:0; margin-left:auto; }
+ html[dir="rtl"] .mobile-menu { margin-right:0; margin-left:12px; }
+}
+[data-custom-semester][hidden] { display:none; }
+html[dir="rtl"] .calendar-arrow, html[dir="rtl"] .sidebar-collapse-toggle svg { transform:scaleX(-1); }

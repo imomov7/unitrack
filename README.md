@@ -91,3 +91,13 @@ Profile now offers searchable major suggestions with manual entry. University se
 Startup HTML displays loading/failure guidance instead of obsolete zero-value statistics. Directory loading has a timeout and retry fallback. Profile saves prevent duplicate submissions and stale background responses overwriting edits; account identity is checked before profile mutations. The local key `unitrack-data-v1` and existing academic schemas are unchanged. Cache v9 includes startup and major assets.
 
 The existing own-account deletion Edge Function was deployed to Supabase on 2026-11-14, with gateway JWT verification retained. OPTIONS and unauthenticated rejection are checked; actual destructive deletion and authenticated cross-device flows require a disposable signed-in test account.
+
+## Academic automation and Arabic (1.5.0)
+
+- Student Profile reuses saved university/major and offers general or selected-university degree suggestions. All fields remain editable.
+- My Courses searches the selected institution's sourced subjects and fills factual codes, names and source credit units. Manual entry and duplicate protection remain available. See `assets/data/README.md` for exact coverage and refresh commands.
+- Calendar → Edit semester offers Fall, Spring, Summer, or Other / Custom and the term's start year. Existing custom names and dates are preserved. Verified RIT Rochester suggestions require review. Switching a named term uses an in-page confirmation and preserves the entire prior workspace snapshot in Academic history before opening a separate term. Starting a planned term keeps its own planned courses; switching directly opens an empty term.
+- Settings → Language switches between English (default) and Arabic. Arabic sets `lang=ar`, `dir=rtl`, and localizes the interface, dates, controls and messages. `locales/ar.js` is the editable translation catalogue; `js/i18n.js` translates text nodes and accessible labels without rebuilding controls or mutating stored academic values. Official names, codes and user-entered content remain unchanged. Language is a device preference in `acadely-language-v1`, independent of the preserved `unitrack-data-v1` workspace key.
+- Static shell cache v10 includes the language and automation assets. No schema or authentication changes are required.
+
+Validation includes all automated tests, the existing form integration harness, English/Arabic rendering and a local disposable-data browser preview at 375×812, 390×844, and 430×932. Real iPhone/Android and authenticated multi-device flows still require physical-device and disposable-account verification.

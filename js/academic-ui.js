@@ -26,19 +26,18 @@ function semesterCard(s) {
   return `<article class="academic-semester"><div class="panel-heading"><div><h3>${esc(s.name)}</h3><p>${esc(s.start || 'No start date')} – ${esc(s.end || 'No end date')}${s.university ? ' · '+esc(s.university) : ''}</p></div><span>${s.status==='completed' ? 'GPA '+(gpa.value===null?'—':gpa.value.toFixed(2)+' / '+s.maxGpa) : 'Planned · '+(s.courses||[]).reduce((sum,c)=>sum+Number(c.credits||0),0)+' credits'}</span></div>${(s.courses||[]).map(c=>`<div class="data-row"><div><strong>${esc(c.code || '')} ${esc(c.name)}</strong><small>${esc(c.credits)} credits${s.status==='completed' ? ' · '+esc(c.finalGrade || 'No final grade')+' · '+(c.points==='' || c.points==null ? 'No GPA points' : esc(c.points)+' GPA points')+(c.completed?' · Completed':'') : ''}</small></div></div>`).join('') || '<p class="helper-text">No courses added.</p>'}<div class="row-actions"><button data-action="academic-edit-semester" data-id="${esc(s.id)}">Edit</button>${s.status==='planned' ? `<button data-action="academic-add-planned-course" data-id="${esc(s.id)}">Add course</button><button data-action="academic-start-plan" data-id="${esc(s.id)}">Start this semester</button>` : ''}<button data-action="academic-delete-semester" data-id="${esc(s.id)}">Delete</button></div></article>`;
 }
 function availableCatalogue() {
-  const university=String(data.studentProfile.university||data.settings.university||'').toLowerCase();
-  return academicCatalogue.filter(group=>group.universityNames.some(name=>university.includes(name.toLowerCase()))).flatMap(group=>group.courses.map(course=>({...course,source:group.source,edition:group.edition})));
+  return AcadelyAutomation.universityCourses(academicCatalogue,data.studentProfile.university||data.settings.university);
 }
 function academicDialog(title,body,onSubmit) {
   const dialog=document.createElement('dialog');dialog.className='app-dialog';
   dialog.innerHTML=`<form><div class="panel-heading"><h2>${esc(title)}</h2><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields">${body}</div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">Save</button></div></form>`;
-  document.body.append(dialog);openDialog(dialog);dialog.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>closeDialog(dialog));dialog.addEventListener('close',()=>dialog.remove());
+  document.body.append(dialog);bindSemesterSelector(dialog);openDialog(dialog);dialog.querySelectorAll('[data-cancel]').forEach(b=>b.onclick=()=>closeDialog(dialog));dialog.addEventListener('close',()=>dialog.remove());
   dialog.querySelector('form').onsubmit=event=>{event.preventDefault();onSubmit(new FormData(event.currentTarget),dialog);};return dialog;
 }
 function semesterEditor(record,status='completed') {
-  academicDialog(record?'Edit semester':status==='planned'?'Plan next semester':'Add previous semester',`<label>Semester name<input name="name" required maxlength="80" value="${esc(record?.name||'')}"></label><div class="two-fields"><label>Start<input type="date" name="start" required value="${esc(record?.start||'')}"></label><label>End<input type="date" name="end" required value="${esc(record?.end||'')}"></label></div><label>Maximum GPA<input type="number" name="maxGpa" min="1" max="20" step="any" required value="${record?.maxGpa||data.settings.maxGpa}"></label><p class="helper-text">Save the semester, then add its courses. GPA uses the points shown on your transcript.</p>`,(f,d)=>{
+  academicDialog(record?'Edit semester':status==='planned'?'Plan next semester':'Add previous semester',`${semesterSelectorFields(record?.name,record?.start,record?.end)}<label>Maximum GPA<input type="number" name="maxGpa" min="1" max="20" step="any" required value="${record?.maxGpa||data.settings.maxGpa}"></label><p class="helper-text">Save the semester, then add its courses. GPA uses the points shown on your transcript.</p>`,(f,d)=>{
     const start=String(f.get('start')),end=String(f.get('end'));if(!validDate(start)||!validDate(end)||start>end)return msg('Check the semester dates.');
-    const name=String(f.get('name')||'').trim();if(!name)return msg('Enter a semester name.');
+    const name=readSemesterFields(f);if(!name)return msg('Enter a semester name.');
     const maxGpa=Number(f.get('maxGpa'));if(!Number.isFinite(maxGpa)||maxGpa<1||maxGpa>20)return msg('Enter a valid GPA scale.');
     if(record && record.courses.some(c=>c.points!=='' && Number(c.points)>maxGpa))return msg('A course has more GPA points than this scale. Edit its grade first.');
     const saved={...(record||{id:makeId(),courses:[],status,university:data.settings.university||''}),name,start,end,maxGpa};
@@ -46,7 +45,7 @@ function semesterEditor(record,status='completed') {
   });
 }
 function semesterCourseEditor(semester,course=null) {
-  academicDialog(course?'Edit course':'Add semester course',`<label>Course code<input name="code" maxlength="30" required value="${esc(course?.code||'')}"></label><label>Course name<input name="name" maxlength="120" required value="${esc(course?.name||'')}"></label><label>Credits<input type="number" name="credits" min="0.1" max="100" step="any" required value="${course?.credits||3}"></label>${semester.status==='completed'?`<label>Final grade (as shown on transcript)<input name="finalGrade" maxlength="30" value="${esc(course?.finalGrade||'')}"></label><label>GPA points (0–${semester.maxGpa})<input type="number" name="points" min="0" max="${semester.maxGpa}" step="any" value="${course?.points??''}" placeholder="Leave blank if unavailable"></label><label class="remember-choice"><input type="checkbox" name="completed" ${course?.completed?'checked':''}>Successfully completed / credit earned</label><small>Use your university’s passing rules. Recommendations only count courses marked completed.</small>`:''}`,(f,d)=>{
+  academicDialog(course?'Edit course':'Add semester course',`<label>Course code<input name="code" maxlength="30" required value="${esc(course?.code||'')}"></label><label>Course name<input name="name" maxlength="120" required value="${esc(course?.name||'')}"></label><label>Credits<input type="number" name="credits" min="0.1" max="100" step="any" required value="${course?.credits??''}"></label>${semester.status==='completed'?`<label>Final grade (as shown on transcript)<input name="finalGrade" maxlength="30" value="${esc(course?.finalGrade||'')}"></label><label>GPA points (0–${semester.maxGpa})<input type="number" name="points" min="0" max="${semester.maxGpa}" step="any" value="${course?.points??''}" placeholder="Leave blank if unavailable"></label><label class="remember-choice"><input type="checkbox" name="completed" ${course?.completed?'checked':''}>Successfully completed / credit earned</label><small>Use your university’s passing rules. Recommendations only count courses marked completed.</small>`:''}`,(f,d)=>{
     const saved={...(course||{id:makeId()}),code:String(f.get('code')||'').trim().toUpperCase(),name:String(f.get('name')||'').trim(),credits:Number(f.get('credits')),finalGrade:String(f.get('finalGrade')||'').trim(),points:f.get('points')==null||f.get('points')===''?'':Number(f.get('points')),completed:f.get('completed')==='on'};
     if(!saved.code||!saved.name||!Number.isFinite(saved.credits)||saved.credits<=0)return msg('Enter a course code, name, and positive credits.');
     if(saved.points!==''&&(!Number.isFinite(saved.points)||saved.points<0||saved.points>semester.maxGpa))return msg('Enter valid GPA points.');
@@ -111,12 +110,15 @@ function finishCurrentSemester() {
   const result=gpaSummary();
   data.semesters.push({id:makeId(),status:'completed',name:data.settings.semester,start:data.settings.start,end:data.settings.end,maxGpa:Number(data.settings.maxGpa),university:data.settings.university||'',courses:result.courses.map(row=>({id:makeId(),code:row.course.code||'',name:row.course.name,credits:row.credits,finalGrade:row.completion>=100&&row.percentage!==null?String(row.percentage)+'%':'',points:row.completion>=100&&row.points!==null?row.points:'',completed:false}))});save();msg('Semester saved to history. Review each course’s completed status.');
 }
-function startPlannedSemester(plan) {
+function startPlannedSemester(plan,allowEmpty=false,confirmed=false) {
   
   if(Number(plan.maxGpa)!==Number(data.settings.maxGpa))return msg('This plan uses a different GPA scale. Set your university grading scale in Settings before starting it.');
-  if(!plan.courses.length)return msg('Add at least one course to this plan.');
+  if(!plan.courses.length&&!allowEmpty)return msg('Add at least one course to this plan.');
   if(!validDate(plan.start)||!validDate(plan.end)||plan.start>plan.end)return msg('Set valid dates on this plan first.');
-  if(!confirm('Start this planned semester? Your current semester will be saved as a separate history record with all its academic data. The new semester will open with the planned courses and an empty timetable.'))return;
+  if(!confirmed){
+    const confirmation=academicDialog('Start this semester','<p>Start this planned semester? Your current semester will be saved as a separate history record with all its academic data. The new semester will open with the planned courses and an empty timetable.</p>',()=>startPlannedSemester(plan,allowEmpty,true));
+    confirmation.querySelector('button:not([type="button"])').textContent='Start this semester';window.AcadelyI18n?.apply(confirmation);return false;
+  }
   let old=data.semesters.find(s=>s.status==='completed'&&s.name===data.settings.semester&&s.start===data.settings.start);
   const hasCurrent=['courses','assignments','assessments','classes','exams','sessions','events'].some(k=>data[k].length);
   if(hasCurrent && (!data.settings.semester || !validDate(data.settings.start) || !validDate(data.settings.end)))return msg('Save your current semester name and dates before starting another one.');
@@ -127,5 +129,5 @@ function startPlannedSemester(plan) {
   if(old){if(!Array.isArray(old.workspaceSnapshots))old.workspaceSnapshots=[];old.workspaceSnapshots.push({savedAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(Object.fromEntries(['settings','courses','assignments','assessments','classes','exams','sessions','events'].map(k=>[k,data[k]]))))});}
   for(const k of ['assignments','assessments','classes','exams','sessions','events'])data[k]=[];
   data.courses=plan.courses.map(c=>({...c,id:makeId(),gradeMode:'assessments',finalGrade:null}));
-  data.settings={...data.settings,semester:plan.name,start:plan.start,end:plan.end};data.semesters=data.semesters.filter(s=>s.id!==plan.id);save();msg('Your new semester is ready.');
+  data.settings={...data.settings,semester:plan.name,start:plan.start,end:plan.end};data.semesters=data.semesters.filter(s=>s.id!==plan.id);document.querySelectorAll('dialog[open]').forEach(closeDialog);save();msg('Your new semester is ready.');return true;
 }

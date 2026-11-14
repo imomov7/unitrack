@@ -2,7 +2,7 @@
 (function(root) {
   const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-  const code = value => normalize(value).replace(/[^a-z0-9]/g, '');
+  const code = value => normalize(value).replace(/[^\p{L}\p{N}]/gu, '');
   function searchUniversities(rows, query) {
     const q = normalize(query);
     if (!q) return [];
@@ -13,10 +13,10 @@
     const tokens = normalize(query).split(/\s+/).filter(Boolean).map(compact);
     return rows.filter(row => tokens.every(token => [row.code,row.name,row.professor].some(value => compact(value).includes(token))));
   }
-  function searchMajors(rows, query) {
+  function searchMajors(rows, query, university='') {
     const q=normalize(query);if(!q)return [];
     return rows.filter(row=>[row.name,...(row.aliases||[])].some(value=>normalize(value).includes(q)))
-      .sort((a,b)=>Number(normalize(b.name).startsWith(q))-Number(normalize(a.name).startsWith(q))||a.name.localeCompare(b.name)).slice(0,20);
+      .sort((a,b)=>Number((b.universityNames||[]).some(n=>normalize(n)===normalize(university)))-Number((a.universityNames||[]).some(n=>normalize(n)===normalize(university)))||Number(normalize(b.name).startsWith(q))-Number(normalize(a.name).startsWith(q))||a.name.localeCompare(b.name)).slice(0,20);
   }
   function classOccurs(item, iso, settings) {
     const day = new Date(`${iso}T12:00:00`).getDay();
