@@ -758,17 +758,18 @@ html[dir="rtl"] .calendar-arrow, html[dir="rtl"] .sidebar-collapse-toggle svg { 
 .breadcrumb-home:focus-visible { outline:2px solid var(--accent);outline-offset:3px;border-radius:3px; }
 .breadcrumb strong { min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap; }
 
-/* One language toolbar remains available before and after authentication. */
-.language-bar { background:var(--bg);color:var(--text);border-bottom:1px solid var(--line-soft);font-family:var(--font);padding-left:max(16px,env(safe-area-inset-left));padding-right:max(16px,env(safe-area-inset-right)); }
-.language-options button:hover { background:var(--surface); }
-.language-options button[aria-pressed="true"] { background:var(--accent);color:var(--button-text,#fff); }
-.language-options button:focus-visible { outline:2px solid var(--accent);outline-offset:1px; }
-.sidebar { top:var(--language-bar-height,52px); }
-.app-shell,.main-content { min-height:calc(100vh - var(--language-bar-height,52px)); }
-.auth-screen,.boot-screen { min-height:calc(100vh - var(--language-bar-height,52px));min-height:calc(100svh - var(--language-bar-height,52px)); }
-@media(max-width:480px) { .language-bar { padding-inline:12px; } }
-
-/* The language bar now owns the top safe area; avoid counting it twice. */
-.sidebar { padding-top:25px; }
-.topbar { height:63px;padding-top:0; }
-@media(max-width:900px) { .topbar { height:59px; } }
+/* Language choices share the existing theme controls, without a separate bar. */
+.language-slot { display:contents; }
+.language-picker { position:relative;display:flex;flex:none; }
+.language-toggle { width:36px;height:36px; }
+.language-menu { position:absolute;inset-inline-end:0;top:calc(100% + 8px);z-index:30;min-width:170px;padding:5px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px #0003; }
+.language-menu[hidden] { display:none; }
+.language-menu button { display:block;width:100%;min-height:44px;padding:10px 12px;border:0;border-radius:6px;background:transparent;color:var(--text);font:inherit;text-align:start;cursor:pointer; }
+.language-menu button:hover,.language-menu button:focus-visible { background:var(--surface-hover,var(--bg)); }
+.language-menu button[aria-pressed="true"] { color:var(--accent);font-weight:700;background:var(--accent-soft,var(--bg)); }
+.language-toggle:focus-visible,.language-menu button:focus-visible { outline:2px solid var(--accent);outline-offset:2px; }
+.auth-card { position:relative; }
+.auth-utilities { position:absolute;inset-block-start:14px;inset-inline-end:14px;display:flex;align-items:center;gap:4px; }
+.auth-card .auth-logo { max-width:min(195px,calc(100% - 104px));justify-self:start; }
+.topbar-actions { flex-shrink:0; }
+@media(max-width:900px) { .topbar-actions { gap:6px; }.language-toggle,.auth-utilities .icon-button { width:44px;height:44px; } }
