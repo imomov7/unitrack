@@ -1575,7 +1575,7 @@ document.querySelector('#menu-toggle').addEventListener('click', () => toggleMen
 document.querySelector('#mobile-overlay').addEventListener('click', () => toggleMenu(false));
 document.addEventListener('keydown', (event) => { if (event.key === 'Escape') toggleMenu(false); });
 document.querySelector('.icon-button[aria-label="Notifications"]')?.addEventListener('click', () => msg('You’re all caught up.'));
-document.querySelector('.profile-button')?.addEventListener('click', () => { location.hash = '#profile'; });
+document.querySelector('.profile-button')?.addEventListener('click', () => navigateTo('profile'));
 window.addEventListener('beforeinstallprompt', (event) => {
   event.preventDefault();
   deferredInstallPrompt = event;

@@ -40,7 +40,7 @@ function courseCardsMarkup() {
   return courses.length?courses.map(c=>{
     const result=grades.courses.find(r=>r.course.id===c.id);
     const classes=data.classes.filter(r=>r.courseId===c.id);
-    return `<article class="course-card"><div class="course-card-top"><span class="course-code">${esc(c.code||'COURSE')}</span><span class="credit-label">${Number(c.credits)||0} credits</span></div><h2>${esc(c.name)}</h2><p class="course-semester">${esc(data.settings.semester||'Current semester')}</p>${c.professor?`<p class="course-detail">Professor ${esc(c.professor)}</p>`:''}<div class="course-grade"><span>Current grade</span><strong>${result?.percentage!=null?result.percentage.toFixed(1)+'%':'No marks yet'}</strong></div>${classes.length?`<p class="course-detail">${classes.map(cl=>`${esc((cl.days||[cl.day]).map(d=>d?.slice(0,3)).join(', '))} · ${esc(cl.start)}–${esc(cl.end)}`).join('<br>')}</p>`:'<p class="course-detail">No classes scheduled</p>'}<div class="course-actions"><button type="button" data-action="ux-course-grades" data-id="${esc(c.id)}">Add mark</button><button type="button" data-action="ux-course-class" data-id="${esc(c.id)}">Schedule</button><button type="button" data-action="edit" data-kind="courses" data-id="${esc(c.id)}">Edit</button><button type="button" data-action="delete" data-kind="courses" data-id="${esc(c.id)}">Remove</button></div></article>`;
+    return `<article class="course-card"><div class="course-card-top"><span class="course-code">${esc(c.code||'COURSE')}</span><span class="credit-label">${Number(c.credits)||0} credits</span></div><h2>${esc(c.name)}</h2><p class="course-semester">${esc(data.settings.semester||'Current semester')}</p>${c.professor?`<p class="course-detail">Professor ${esc(c.professor)}</p>`:''}<div class="course-grade"><span>Current grade</span><strong>${result?.percentage!=null?result.percentage.toFixed(1)+'%':'No marks yet'}</strong></div>${classes.length?`<p class="course-detail">${classes.map(cl=>`${esc((cl.days||[cl.day]).map(d=>d?.slice(0,3)).join(', '))} · ${esc(cl.start)}–${esc(cl.end)}`).join('<br>')}</p>`:'<p class="course-detail">No classes scheduled</p>'}<div class="course-actions"><button type="button" data-action="ux-course-grades" data-id="${esc(c.id)}">${c.gradeMode==='final'?'Edit grade':'Add mark'}</button><button type="button" data-action="ux-course-class" data-id="${esc(c.id)}">Schedule</button><button type="button" data-action="edit" data-kind="courses" data-id="${esc(c.id)}">Edit</button><button type="button" data-action="delete" data-kind="courses" data-id="${esc(c.id)}">Remove</button></div></article>`;
   }).join(''):`<div class="course-empty"><h2>${data.courses.length?'No matching courses':'Your courses, all in one place.'}</h2><p>${data.courses.length?'Try a different name or code.':'Search the available catalogue or enter a course from your syllabus.'}</p>${!data.courses.length?addButton('Add Course','course'):''}</div>`;
 }
 function myCourses() {
@@ -113,7 +113,13 @@ function handleSimpleAction(action,control) {
     if(data.courses.some(row=>AcadelyPlanning.code(row.code)===AcadelyPlanning.code(c.code)))return msg('This course is already in your semester.');
     data.courses.push({...c,id:makeId(),gradeMode:'assessments',finalGrade:null});closeDialog(control.closest('dialog'));save();msg('Course added to your semester.');
   }
-  else if(action==='ux-course-grades')openRecordDialog('assessment',{courseId:control.dataset.id});
+  else if(action==='ux-course-grades'){
+    const course=data.courses.find(c=>c.id===control.dataset.id);if(!course)return;
+    if(course.gradeMode==='final')academicDialog('Final course grade',`<p class="helper-text">${esc(course.name)}</p><label>Final grade (%)<input name="finalGrade" type="number" min="0" max="100" step="any" required value="${course.finalGrade??''}"></label>`,(fields,dialog)=>{
+      const score=Number(fields.get('finalGrade'));if(!Number.isFinite(score)||score<0||score>100)return msg('Enter a percentage from 0 to 100.');course.finalGrade=score;closeDialog(dialog);save();msg('Final grade saved.');
+    });
+    else openRecordDialog('assessment',{courseId:control.dataset.id});
+  }
   else if(action==='ux-course-class')openRecordDialog('class',{courseId:control.dataset.id});
 }
 function bindSimplifiedPages() {
