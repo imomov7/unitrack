@@ -90,9 +90,11 @@
   }
 
   async function getOrCreateProfile(user) {
+    const requestedUserId=user?.id;
     const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
     if (currentAuthError) throw currentAuthError;
     user = currentAuth.user;
+    if (requestedUserId && user?.id !== requestedUserId) throw new Error('The signed-in account changed. Sign in again.');
     if (!user?.id) throw new Error('A signed-in account is required to load its profile.');
     const columns = 'user_id,full_name,email,student_data';
     const readOwnProfile = () => client.from('acadely_profiles').select(columns).eq('user_id', user.id).maybeSingle();
@@ -122,6 +124,9 @@
   }
 
   async function saveStudentProfile(userId, studentProfile) {
+    const {data: identity,error: identityError}=await client.auth.getUser();
+    if(identityError)throw identityError;
+    if(identity.user?.id!==userId)throw new Error('The signed-in account changed. Sign in again to save this profile.');
     const { data: authResult, error: authError } = await client.auth.updateUser({
       data: { full_name: String(studentProfile.fullName || '').trim().slice(0, 120) },
     });

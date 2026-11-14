@@ -48,3 +48,13 @@ for (const newerCloud of [false,true]) {
   assert.equal(c.data.courses[0].id,'unsynced-course');assert.equal(c.localChangeVersion,1);assert.equal(c.cloudConflict,newerCloud);assert.equal(c.activatingAccountId,null);assert.deepEqual(states,[newerCloud?'conflict':'sync']);
  });
 }
+test('background profile refresh cannot replace unsynced local profile edits',async()=>{
+ const local={fullName:'Local edit',major:'My saved major'};
+ const c=vm.createContext({localChangeVersion:2,lastSyncedChangeVersion:1,accountUser:{id:'a'},profileCloudReady:true,profileSaveInProgress:false,cloudReady:true,data:{studentProfile:local},window:{AcadelyCloudService:{getOrCreateProfile:async()=>({full_name:'Older name',student_data:{major:'Older major'}})}},withProfileIdentity:u=>u,attachWorkspaceRealtime(){},syncProfileDisplay(){},save(){throw Error('Must not replace local edits');},mergedAccountStudentProfile(){throw Error('Must not merge stale profile');}});
+ vm.runInContext(functionSource(source,'refreshAccountProfile'),c);await c.refreshAccountProfile({id:'a'});assert.equal(c.data.studentProfile,local);
+});
+test('unconfirmed email changes from a profile notification are checked against Auth first',()=>{
+ let checked=false;const c=vm.createContext({accountUser:{id:'a',email:'confirmed@example.test'},localChangeVersion:0,lastSyncedChangeVersion:0,profileSaveInProgress:false,refreshAccountProfile:async()=>{checked=true;}});
+ vm.runInContext(functionSource(source,'onRemoteProfileChange'),c);c.onRemoteProfileChange({new:{user_id:'a',email:'unconfirmed@example.test'}});
+ assert.equal(checked,true);assert.equal(c.accountUser.email,'confirmed@example.test');
+});

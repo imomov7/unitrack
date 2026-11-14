@@ -100,15 +100,18 @@ test('profile edits update Auth metadata and the same user profile record', asyn
   await service.initialize(() => {});
   await service.getOrCreateProfile(getAuthUser());
   const result = await service.saveStudentProfile('student-1', {
-    fullName: 'Jordan S.', studentId: 'UID-7', university: 'Example University', major: 'Math',
+    fullName: 'Jordan S.', studentId: 'UID-7', university: 'Example University', campus: 'Main campus', major: 'Math',
     academicYear: 'Second year', semester: 'Spring', profilePicture: 'data:image/jpeg;base64,AAAA',
   });
   assert.equal(result.user.user_metadata.full_name, 'Jordan S.');
   assert.equal(result.profile.full_name, 'Jordan S.');
   assert.equal(result.profile.email, 'student@example.com');
   assert.equal(result.profile.student_data.studentId, 'UID-7');
+  assert.equal(result.profile.student_data.major,'Math');
+  assert.equal(result.profile.student_data.campus,'Main campus');
   assert.equal(result.profile.student_data.profilePicture, 'data:image/jpeg;base64,AAAA');
   await assert.rejects(() => service.saveStudentProfile('someone-else', { fullName: 'Nope' }), /account changed/);
+  assert.equal(getAuthUser().user_metadata.full_name,'Jordan S.');
 });
 
 test('profile table schema is protected by user-scoped RLS policies and has one row per user', async () => {

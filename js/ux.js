@@ -13,7 +13,7 @@ function contextNavigation(page) {
   const groups = ['calendar','timetable','exams'].includes(page)
     ? [['calendar','Calendar'],['timetable','Class schedule'],['exams','Exams']]
     : ['grades','gpa','history','overview'].includes(page)
-      ? [['grades','Marks & targets'],['gpa','Semester GPA'],['history','Academic history'],['overview','Semester progress']] : [];
+      ? [['grades','Marks & targets'],['gpa','GPA Calculator'],['history','Academic history'],['overview','Semester progress']] : [];
   return groups.length ? `<nav class="section-tabs" aria-label="${['calendar','timetable','exams'].includes(page)?'Calendar':'Grades'} views">${groups.map(([route,label])=>`<a href="#${route}" ${route===page?'aria-current="page"':''}>${label}</a>`).join('')}</nav>` : '';
 }
 function simpleDashboard() {
@@ -34,8 +34,7 @@ function gradeSummaryStrip() {
   return `<section class="grade-summary"><div><span>Semester GPA</span><strong>${result.value===null?'—':result.value.toFixed(2)}<small> / ${Number(data.settings.maxGpa).toFixed(1)}</small></strong></div><p>${result.estimated?'Based on marks entered so far. Missing work can change your grade.':'Your current course grades, weighted by credit hours.'}</p>${currentPage!=='gpa'?'<a class="text-link" href="#gpa">View GPA details ↗</a>':''}</section>`;
 }
 function courseCardsMarkup() {
-  const q=courseSearch.trim().toLowerCase();
-  const courses=data.courses.filter(c=>`${c.name} ${c.code||''} ${c.professor||''}`.toLowerCase().includes(q));
+  const courses=AcadelyPlanning.searchCourses(data.courses,courseSearch);
   const grades=gpaSummary();
   return courses.length?courses.map(c=>{
     const result=grades.courses.find(r=>r.course.id===c.id);
@@ -55,7 +54,7 @@ function academicHistory() {
 }
 function simpleProfile() {
   const p=data.studentProfile;const synced=!!accountUser;
-  return `${pageHeader('Student Profile','Your details and your university, in one place.')}<article class="panel profile-panel"><form id="student-profile-form" class="settings-form"><div class="profile-preview"><span class="avatar profile-avatar">${esc(initials(p.fullName))}</span><div><strong>${esc(p.fullName||'Your profile')}</strong><small>${synced?'Signed in to Acadely':'Saved on this device · not a verified account'}</small></div></div><div class="two-fields"><label>Full name<input name="fullName" value="${esc(p.fullName)}" required maxlength="120" autocomplete="name"></label><label>Email<input name="email" type="email" value="${esc(accountUser?.email||p.email)}" maxlength="254" autocomplete="email" ${synced?'readonly':''}></label></div>${synced?'<p class="helper-text">To update your sign-in email, <button type="button" class="text-link" data-action="account-open-email">change your account email</button>.</p>':''}<div class="form-divider"></div><label>University<input id="university-search" name="university" value="${esc(p.university||data.settings.university)}" maxlength="160" autocomplete="off" placeholder="Search by university name" role="combobox" aria-autocomplete="list" aria-controls="university-results" aria-expanded="false"></label><div id="university-results" class="academic-results" role="listbox" aria-label="University suggestions" hidden></div><p id="university-status" class="helper-text">Choose a suggestion or enter your university’s name manually. Directory coverage is limited.</p><div class="two-fields"><label>Campus (optional)<input name="campus" value="${esc(p.campus||data.settings.campus||'')}" maxlength="100" placeholder="Your campus"></label><label>Degree or major<input name="major" value="${esc(p.major)}" maxlength="120" placeholder="Your degree program"></label></div><details class="disclosure"><summary>More profile details</summary><div class="two-fields"><label>Student ID / UID (optional)<input name="studentId" value="${esc(p.studentId)}" maxlength="80"></label><label>Academic year<input name="academicYear" value="${esc(p.academicYear)}" maxlength="40"></label></div><label>Profile picture<input type="file" name="profilePictureFile" accept="image/png,image/jpeg,image/webp"><small>JPG, PNG, or WebP, up to 8 MB. Resized before saving.</small></label>${p.profilePicture?'<button class="button button-secondary" type="button" data-action="profile-picture-remove">Remove picture</button>':''}</details><div class="profile-save"><span>${synced?'Saved to your account with a copy on this device.':'Saved in this browser.'}</span><button class="button button-primary" type="submit">Save profile</button></div></form></article>`;
+  return `${pageHeader('Student Profile','Your details and your university, in one place.')}<article class="panel profile-panel"><form id="student-profile-form" class="settings-form"><div class="profile-preview"><span class="avatar profile-avatar">${esc(initials(p.fullName))}</span><div><strong>${esc(p.fullName||'Your profile')}</strong><small>${synced?'Signed in to Acadely':'Saved on this device · not a verified account'}</small></div></div><div class="two-fields"><label>Full name<input name="fullName" value="${esc(p.fullName)}" required maxlength="120" autocomplete="name"></label><label>Email<input name="email" type="email" value="${esc(accountUser?.email||p.email)}" maxlength="254" autocomplete="email" ${synced?'readonly':''}></label></div>${synced?'<p class="helper-text">To update your sign-in email, <button type="button" class="text-link" data-action="account-open-email">change your account email</button>.</p>':''}<div class="form-divider"></div><label>University<input id="university-search" name="university" value="${esc(p.university||data.settings.university)}" maxlength="160" autocomplete="off" placeholder="Search by university name" role="combobox" aria-autocomplete="list" aria-controls="university-results" aria-expanded="false"></label><div id="university-results" class="academic-results" role="listbox" aria-label="University suggestions" hidden></div><p id="university-status" class="helper-text">Choose a suggestion or enter your university’s name manually. Directory coverage is limited.</p><div class="two-fields"><label>Campus (optional)<input name="campus" value="${esc(p.campus||data.settings.campus||'')}" maxlength="100" placeholder="Your campus"></label><label>Degree or major<input id="major-search" name="major" value="${esc(p.major)}" maxlength="120" autocomplete="off" placeholder="Search or enter your major" role="combobox" aria-autocomplete="list" aria-controls="major-results" aria-expanded="false"></label></div><div id="major-results" class="academic-results" role="listbox" aria-label="Major suggestions" hidden></div><p id="major-status" class="helper-text">Common fields of study, not confirmed programs at your university. You can enter your own.</p><details class="disclosure"><summary>More profile details</summary><div class="two-fields"><label>Student ID / UID (optional)<input name="studentId" value="${esc(p.studentId)}" maxlength="80"></label><label>Academic year<input name="academicYear" value="${esc(p.academicYear)}" maxlength="40"></label></div><label>Profile picture<input type="file" name="profilePictureFile" accept="image/png,image/jpeg,image/webp"><small>JPG, PNG, or WebP, up to 8 MB. Resized before saving.</small></label>${p.profilePicture?'<button class="button button-secondary" type="button" data-action="profile-picture-remove">Remove picture</button>':''}</details><div class="profile-save"><span>${synced?'Saved to your account with a copy on this device.':'Saved in this browser.'}</span><button class="button button-primary" type="submit" ${profileFormBusy?'disabled':''}>${profileFormBusy?'Saving profile…':'Save profile'}</button></div></form></article>`;
 }
 async function bindProfileUniversity() {
   const input=document.querySelector('#university-search'); if(!input)return;
@@ -100,12 +99,12 @@ function openCoursePicker() {
 }
 function renderCoursePicker() {
   const results=document.querySelector('#course-picker-results');if(!results)return;
-  const q=String(document.querySelector('#course-picker-search')?.value||'').toLowerCase().replace(/[^a-z0-9]/g,'');
-  const courses=availableCatalogue().filter(c=>`${c.code} ${c.name}`.toLowerCase().replace(/[^a-z0-9]/g,'').includes(q));
+  const courses=AcadelyPlanning.searchCourses(availableCatalogue(),document.querySelector('#course-picker-search')?.value||'');
   results.innerHTML=courses.length?courses.map(c=>{const exists=data.courses.some(r=>AcadelyPlanning.code(r.code)===AcadelyPlanning.code(c.code));return `<div class="catalogue-course"><div><strong>${esc(c.code)} · ${esc(c.name)}</strong><small>${Number(c.credits)} credits</small><details><summary>Course details & source</summary><p>${esc(c.description||'See the official catalogue for the course description.')}</p><p>${esc(c.prerequisiteText||'Prerequisites not verified in this sample. Confirm with your university.')}</p><a class="text-link" href="${esc(c.source)}" target="_blank" rel="noopener">Official catalogue · ${esc(c.edition)} ↗</a></details></div><button class="button button-primary" type="button" data-action="ux-pick-course" data-code="${esc(c.code)}" ${exists?'disabled':''}>${exists?'Added':'Add course'}</button></div>`;}).join(''):'<p class="quiet-state">No matching course in the available sample. Use manual entry to add it from your syllabus.</p>';
 }
 function handleSimpleAction(action,control) {
-  if(action==='ux-profile')navigateTo('profile');
+  if(action==='ux-major-select')chooseProfileMajor(control.dataset.name);
+  else if(action==='ux-profile')navigateTo('profile');
   else if(action==='ux-semester-dates')editSemesterDates();
   else if(action==='ux-course-manual'){closeDialog(control.closest('dialog'));openRecordDialog('course');}
   else if(action==='ux-pick-course'){
@@ -123,6 +122,39 @@ function handleSimpleAction(action,control) {
   else if(action==='ux-course-class')openRecordDialog('class',{courseId:control.dataset.id});
 }
 function bindSimplifiedPages() {
-  if(currentPage==='profile')bindProfileUniversity();
+  if(currentPage==='profile'){bindProfileUniversity();bindProfileMajor();}
   document.querySelector('#my-course-search')?.addEventListener('input',event=>{courseSearch=event.target.value;document.querySelector('#my-course-results').innerHTML=courseCardsMarkup();});
+}
+
+let majorDirectory = [];
+let majorDirectoryState = 'idle';
+let majorSuggestionIndex = -1;
+async function bindProfileMajor() {
+  const input=document.querySelector('#major-search');if(!input)return;
+  input.addEventListener('input',()=>{majorSuggestionIndex=-1;updateProfileMajors();});
+  input.addEventListener('keydown',event=>{
+    const buttons=[...document.querySelectorAll('#major-results [role="option"]')];
+    if(event.key==='Escape'){document.querySelector('#major-results').hidden=true;input.setAttribute('aria-expanded','false');}
+    if(['ArrowDown','ArrowUp'].includes(event.key)&&buttons.length){event.preventDefault();majorSuggestionIndex=(majorSuggestionIndex+(event.key==='ArrowDown'?1:-1)+buttons.length)%buttons.length;buttons.forEach((b,i)=>b.setAttribute('aria-selected',String(i===majorSuggestionIndex)));input.setAttribute('aria-activedescendant',buttons[majorSuggestionIndex].id);}
+    if(event.key==='Enter'&&majorSuggestionIndex>=0&&buttons[majorSuggestionIndex]){event.preventDefault();chooseProfileMajor(buttons[majorSuggestionIndex].dataset.name);}
+  });
+  if(majorDirectory.length)return;
+  majorDirectoryState='loading';
+  try {const rows=await loadAcademicData('majors','ACADELY_MAJORS');majorDirectory=rows.filter(r=>r&&typeof r.name==='string'&&r.name.trim());if(!majorDirectory.length)throw Error();majorDirectoryState='ready';}
+  catch {majorDirectoryState='failed';}
+  if(document.querySelector('#major-search')===document.activeElement)updateProfileMajors();
+}
+function updateProfileMajors() {
+  const input=document.querySelector('#major-search'),results=document.querySelector('#major-results'),status=document.querySelector('#major-status');if(!input||!results)return;
+  const matches=AcadelyPlanning.searchMajors(majorDirectory,input.value);results.hidden=!matches.length;input.setAttribute('aria-expanded',String(!!matches.length));input.removeAttribute('aria-activedescendant');
+  results.innerHTML=matches.map((r,i)=>`<button type="button" class="university-option" id="major-option-${i}" role="option" aria-selected="false" data-action="ux-major-select" data-name="${esc(r.name)}">${esc(r.name)}<small>Common study field</small></button>`).join('');
+  status.textContent=majorDirectoryState==='loading'?'Loading study-field suggestions…':majorDirectoryState==='failed'?'Suggestions are unavailable. You can enter and save your degree or major manually.':matches.length?'Common study fields; confirm your exact program name with your university.':'No matching suggestion. You can save your degree or major exactly as entered.';
+}
+function chooseProfileMajor(name) {
+  const input=document.querySelector('#major-search');if(!input)return;
+  input.value=name;input.setAttribute('aria-expanded','false');input.removeAttribute('aria-activedescendant');document.querySelector('#major-results').hidden=true;document.querySelector('#major-status').textContent='Major selected. Save your profile to keep this change.';majorSuggestionIndex=-1;
+}
+function gpaCalculatorSummary() {
+  const current=gpaSummary();const overall=AcadelyPlanning.cumulativeGpa(data.semesters);
+  return `<section class="gpa-results" aria-label="GPA results"><div><span>Semester GPA${current.estimated?' · estimate':''}</span><strong>${current.value===null?'—':current.value.toFixed(2)}<small> / ${Number(data.settings.maxGpa).toFixed(1)}</small></strong><p>Current courses · ${current.gradedCredits} graded credits</p></div><div><span>Cumulative GPA</span><strong>${overall.value===null?'—':overall.value.toFixed(2)}${overall.maxGpa?`<small> / ${overall.maxGpa}</small>`:''}</strong><p>${esc(overall.reason||'Completed semesters only. Your current semester is added when you save it to history.')}</p><a class="text-link" href="#history">View previous semesters ↗</a></div></section><p class="helper-text gpa-input-help">Use the credit hours from your syllabus. Enter a final percentage, or add each assessment’s score, maximum marks, and course weight. Results update when you save. <a class="text-link" href="#settings">Set your university’s grade scale ↗</a></p>`;
 }

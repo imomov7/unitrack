@@ -8,6 +8,16 @@
     if (!q) return [];
     return rows.filter(row => normalize(row.name).includes(q)).sort((a,b) => Number(normalize(b.name).startsWith(q)) - Number(normalize(a.name).startsWith(q)) || a.name.localeCompare(b.name)).slice(0,20);
   }
+  function searchCourses(rows, query) {
+    const compact = value => normalize(value).replace(/[\s._/–-]+/g,'');
+    const tokens = normalize(query).split(/\s+/).filter(Boolean).map(compact);
+    return rows.filter(row => tokens.every(token => [row.code,row.name,row.professor].some(value => compact(value).includes(token))));
+  }
+  function searchMajors(rows, query) {
+    const q=normalize(query);if(!q)return [];
+    return rows.filter(row=>[row.name,...(row.aliases||[])].some(value=>normalize(value).includes(q)))
+      .sort((a,b)=>Number(normalize(b.name).startsWith(q))-Number(normalize(a.name).startsWith(q))||a.name.localeCompare(b.name)).slice(0,20);
+  }
   function classOccurs(item, iso, settings) {
     const day = new Date(`${iso}T12:00:00`).getDay();
     const selected = Array.isArray(item.days) ? item.days : [item.day];
@@ -40,6 +50,6 @@
     return requirements.filter(r=>r.code && !passed.has(code(r.code)) && !inProgress.has(code(r.code)) && !planned.has(code(r.code)))
       .map(r=>({ ...r, eligible:r.prerequisitesVerified===true && (r.prerequisites||[]).every(p=>prerequisiteMet(r,p)), reason:r.prerequisitesVerified!==true ? 'On your degree list. Confirm prerequisites with your adviser.' : (r.prerequisites||[]).every(p=>prerequisiteMet(r,p)) ? ((r.prerequisites||[]).length ? 'On your degree list; all listed prerequisites and recorded grade minima met.' : 'On your degree list; verified with no prerequisites.') : 'On your degree list; complete the listed prerequisites first.' }));
   }
-  root.AcadelyPlanning = {searchUniversities,classOccurs,semesterGpa,cumulativeGpa,recommend,code};
+  root.AcadelyPlanning = {searchUniversities,searchCourses,searchMajors,classOccurs,semesterGpa,cumulativeGpa,recommend,code};
   if (typeof module !== 'undefined' && module.exports) module.exports = root.AcadelyPlanning;
 })(typeof globalThis !== 'undefined' ? globalThis : window);

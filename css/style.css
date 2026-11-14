@@ -705,3 +705,17 @@ button.text-link { border:0; background:none; padding:0; cursor:pointer; }
 .auth-card { background:var(--surface); }
 :root[data-theme="light"] .auth-logo { content:url('../assets/branding/acadely-logo-dark.svg'); }
 @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; animation-duration:.01ms!important; } }
+.app-startup { border:1px solid var(--line); background:var(--surface); border-radius:14px; padding:32px; max-width:720px; }
+.app-startup h1 { font-size:26px; }
+.app-startup p { color:var(--muted); line-height:1.7; }
+#major-results { max-height:260px; overflow-y:auto; border:1px solid var(--line); border-radius:8px; padding:6px; }
+#major-results[hidden] { display:none; }
+.gpa-results { display:grid; grid-template-columns:1fr 1fr; gap:0; background:var(--surface); border:1px solid var(--line); border-radius:14px; margin-bottom:16px; }
+.gpa-results>div { padding:24px; min-width:0; }
+.gpa-results>div+div { border-left:1px solid var(--line); }
+.gpa-results span { color:var(--muted); font-size:12px; }
+.gpa-results strong { display:block; font-size:30px; font-weight:600; margin:12px 0; }
+.gpa-results strong small { font-size:13px; color:var(--muted); font-weight:400; }
+.gpa-results p { font-size:12px; color:var(--muted); line-height:1.6; }
+.gpa-input-help { margin-bottom:24px; }
+@media(max-width:600px) { .gpa-results { grid-template-columns:1fr; } .gpa-results>div+div { border-left:0; border-top:1px solid var(--line); } }
