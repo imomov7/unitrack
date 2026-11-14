@@ -2,7 +2,7 @@
 (function(root) {
   const days = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
   const normalize = value => String(value || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-  const code = value => normalize(value).replace(/[^a-z0-9]/g, '');
+  const code = value => normalize(value).replace(/[^\p{L}\p{N}]/gu, '');
   function searchUniversities(rows, query) {
     const q = normalize(query);
     if (!q) return [];
