@@ -718,9 +718,10 @@ async function initializeAccountService() {
 }
 
 function authRedirectUrl() {
-  const productionUrl = 'https://imomov7.github.io/unitrack/';
-  if (location.protocol !== 'https:' || location.origin !== 'https://imomov7.github.io') return productionUrl;
-  return `${location.origin}${location.pathname.startsWith('/unitrack') ? location.pathname : '/unitrack/'}`;
+  // Only confirmed production origins may receive authentication links.
+  if (location.protocol === 'https:' && location.origin === 'https://myacadely.vercel.app') return 'https://myacadely.vercel.app/';
+  if (location.protocol === 'https:' && location.origin === 'https://imomov7.github.io') return 'https://imomov7.github.io/unitrack/';
+  return 'https://myacadely.vercel.app/';
 }
 
 async function handleAuthSubmit(event) {
