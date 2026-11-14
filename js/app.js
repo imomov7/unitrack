@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.4.1';
+const APP_VERSION = '1.5.0';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo', email: 'imomovabdullo009@gmail.com' });
 const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, courses: myCourses, history: academicHistory };
 const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA Calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
@@ -176,14 +176,14 @@ function today() {
   const date = new Date();
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
-function dateLabel(date) { return date ? new Date(`${date}T12:00:00`).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : 'No date'; }
+function dateLabel(date) { return date ? new Date(`${date}T12:00:00`).toLocaleDateString(window.AcadelyI18n?.locale||'en', { month: 'short', day: 'numeric' }) : 'No date'; }
 function daysUntil(date) { return Math.ceil((new Date(`${date}T00:00:00`) - new Date(`${today()}T00:00:00`)) / 86400000); }
 function validDate(value) { return /^\d{4}-\d{2}-\d{2}$/.test(String(value)) && !Number.isNaN(new Date(`${value}T12:00:00`).getTime()) && new Date(`${value}T12:00:00`).toISOString().slice(0, 10) === value; }
 function courseName(id) { return data.courses.find((course) => course.id === id)?.name || 'Unassigned'; }
 function courseProgress(courseId) { return UniTrackMath.courseProgress(data.assessments, courseId); }
 function gradeFor(score) { return UniTrackMath.gradeForPercentage(score, data.settings.gradeScale, data.settings.maxGpa); }
 function selectCourses(selected = '', required = false) {
-  return `<option value="">${required ? 'Choose a course' : 'No course selected'}</option>${data.courses.map((course) => `<option value="${esc(course.id)}" ${course.id === selected ? 'selected' : ''}>${esc(course.name)}</option>`).join('')}`;
+  return `<option value="">${required ? 'Choose a course' : 'No course selected'}</option>${data.courses.map((course) => `<option translate="no" value="${esc(course.id)}" ${course.id === selected ? 'selected' : ''}>${esc(course.name)}</option>`).join('')}`;
 }
 function button(label, action, kind = 'secondary', extra = '') { return `<button type="button" class="button button-${kind}" data-action="${action}" ${extra}>${label}</button>`; }
 function stat(label, value, caption, route = '') {
@@ -220,7 +220,7 @@ function assignments() {
 }
 
 function gradePage() {
-  const courseOptions = data.courses.map((course) => `<option value="${esc(course.id)}">${esc(course.name)}</option>`).join('');
+  const courseOptions = data.courses.map((course) => `<option translate="no" value="${esc(course.id)}">${esc(course.name)}</option>`).join('');
   return `${pageHeader('Grades', 'See your marks and find out what you need next.', `<div class="row-actions"><a class="button button-secondary" href="#gpa">GPA Calculator</a>${button('Add assessment', 'add', 'primary', 'data-kind="assessment"')}</div>`)}${gradeSummaryStrip()}${data.courses.length ? `<details class="disclosure"><summary>What do I need to reach my target grade?</summary><section class="form-panel"><form id="whatif-form" class="inline-form"><label>Course<select name="courseId" required>${courseOptions}</select></label><label>Target final grade (%)<input name="target" type="number" min="0" max="100" step="any" value="90" required></label><label>Hypothetical average on remaining work (%)<input name="hypothetical" type="number" min="0" max="100" step="any" placeholder="Optional"></label><button class="button button-primary">Calculate</button></form><div id="whatif-result" class="result-box" aria-live="polite">Choose a course with assessment marks to calculate what you need.</div></section></details>` : card('Start with a course', 'Add a course before entering assessments or using what-if calculations.', empty('No courses yet', 'Create your first course to continue.', 'course'))}${card('Assessments', 'Marks are weighted using each assessment’s share of its course', data.assessments.length ? data.assessments.map((item) => `<div class="data-row"><div><strong>${esc(item.title)} · ${esc(courseName(item.courseId))}</strong><small>${item.score}/${item.max} marks · ${item.weight}% course weight</small></div><div class="row-actions"><button data-action="edit" data-kind="assessments" data-id="${esc(item.id)}">Edit</button><button data-action="delete" data-kind="assessments" data-id="${esc(item.id)}">Delete</button></div></div>`).join('') : empty('No assessments yet', 'Add an assessment to track a course grade.', data.courses.length ? 'assessment' : 'course'))}`;
 }
 
@@ -255,7 +255,7 @@ function gpa() {
 
 function settings() {
   const setting = data.settings;
-  return `${pageHeader('Settings', 'Your preferences, grading scale, and account.')}${card('Grading & study time', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', accountUser ? 'Private cloud account and local cache' : 'Local data storage', `<p class="helper-text">${accountUser ? 'Your workspace is saved in your account and cached on this device for offline use. Export a JSON backup before importing data.' : 'ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. Export a JSON backup before importing data.'}</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${accountCard()}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
+  return `${pageHeader('Settings', 'Your preferences, grading scale, and account.')}${card('Language', 'Choose your interface language. Official names and your saved information stay unchanged.', `<label>Interface language<select id="interface-language"><option value="en" ${window.AcadelyI18n?.language!=='ar'?'selected':''}>English</option><option value="ar" ${window.AcadelyI18n?.language==='ar'?'selected':''}>Arabic</option></select></label>`)}${card('Grading & study time', 'Use the grading rules from your university. The built-in boundaries scale with the maximum GPA until you customize them.', `<form id="settings-form" class="settings-form"><div class="two-fields"><label>Maximum GPA<input name="maxGpa" type="number" min="1" max="20" step="0.1" value="${setting.maxGpa}" required></label><label>Available study hours per day<input name="availableHours" type="number" min="0.25" max="16" step="0.25" value="${setting.availableHours}" required></label></div><h3>Grade boundaries</h3><p class="helper-text">Each row is a minimum percentage, a letter grade, and GPA points. Keep a 0% boundary and award the selected maximum points at the top boundary.</p><div class="scale-list">${setting.gradeScale.map((grade, index) => scaleRow(grade, index)).join('')}</div><div class="row-actions"><button type="button" class="row-action-button" data-action="scale-add">+ Add boundary</button><button type="button" class="row-action-button" data-action="scale-reset">Reset to defaults for this scale</button></div><div><button class="button button-primary">Save university settings</button></div></form>`)}${card('Data storage', accountUser ? 'Private cloud account and local cache' : 'Local data storage', `<p class="helper-text">${accountUser ? 'Your workspace is saved in your account and cached on this device for offline use. Export a JSON backup before importing data.' : 'ACADELY saves in this browser’s LocalStorage. If browser privacy settings block it, changes stay available only until this page closes. Export a JSON backup before importing data.'}</p><div class="row-actions">${button('Export JSON', 'export')}<label class="button button-secondary import-button">Import JSON<input type="file" accept="application/json,.json" id="import-file" aria-label="Choose ACADELY JSON file"></label></div>`)}${accountCard()}${installationCard()}${card('About Acadely', 'Learn about the platform and its creator.', '<a class="text-link" href="#about">Read about Acadely ↗</a>')}`;
 }
 
 function accountCard() {
@@ -1005,7 +1005,7 @@ function categoryLabel(category) {
 }
 function calendarEventButton(item, compact = false) {
   const time = item.start ? `${item.start} ` : '';
-  return `<button type="button" class="calendar-event event-${esc(item.category)}${item.done ? ' is-complete' : ''}" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}" title="${esc(categoryLabel(item.category) + ': ' + item.title)}"><span class="event-dot"></span>${compact ? '' : `<span class="event-time">${esc(time)}</span>`}<span class="event-title">${esc(item.title)}</span></button>`;
+  return `<button type="button" class="calendar-event event-${esc(item.category)}${item.done ? ' is-complete' : ''}" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}" title="${esc(categoryLabel(item.category) + ': ' + item.title)}"><span class="event-dot"></span>${compact ? '' : `<span class="event-time">${esc(time)}</span>`}<span class="event-title" translate="no">${esc(item.title)}</span></button>`;
 }
 function monthGrid() {
   const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1, 12);
@@ -1015,7 +1015,7 @@ function monthGrid() {
   const cells = Array.from({ length: 42 }, (_, index) => {
     const day = new Date(start); day.setDate(start.getDate() + index);
     const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
-    return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.slice(0, 3).map((item) => calendarEventButton(item, true)).join('')}${items.length > 3 ? `<span class="calendar-more">+${items.length - 3} more</span>` : ''}</div></div>`;
+    return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.slice(0, 3).map((item) => calendarEventButton(item, true)).join('')}${items.length > 3 ? `<span class="calendar-more">+${items.length - 3} more</span>` : ''}</div></div>`;
   }).join('');
   return `<div class="calendar-month-grid">${headings}${cells}</div>`;
 }
@@ -1033,10 +1033,10 @@ function calendarRange() {
   return { from: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), calendarCursor.getDate(), 12), to: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), calendarCursor.getDate(), 12) };
 }
 function calendarTitle(from, to) {
-  if (calendarMode === 'month') return from.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
-  if (isoDate(from) === isoDate(to)) return from.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+  if (calendarMode === 'month') return from.toLocaleDateString(window.AcadelyI18n?.locale||'en', { month: 'long', year: 'numeric' });
+  if (isoDate(from) === isoDate(to)) return from.toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   const sameYear = from.getFullYear() === to.getFullYear();
-  return `${from.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })} – ${to.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${sameYear ? `, ${to.getFullYear()}` : `, ${from.getFullYear()} – ${to.getFullYear()}`}`;
+  return `${from.toLocaleDateString(window.AcadelyI18n?.locale||'en', { month: 'short', day: 'numeric' })} – ${to.toLocaleDateString(window.AcadelyI18n?.locale||'en', { month: 'short', day: 'numeric' })}${sameYear ? `, ${to.getFullYear()}` : `, ${from.getFullYear()} – ${to.getFullYear()}`}`;
 }
 function calendarAgenda(date) {
   const events = calendarEvents(dateFromIso(date), dateFromIso(date));
@@ -1083,7 +1083,7 @@ function showCalendarEventDetails(kind, id, date) {
   const time = item.start ? `${item.start}${item.end ? `–${item.end}` : ''}` : '';
   const link = ({ assignment: '#assignments', exam: '#exams', class: '#timetable' })[kind];
   const modal = document.createElement('dialog'); modal.className = 'app-dialog calendar-details';
-  modal.innerHTML = `<div class="panel-heading"><div><span class="calendar-detail-category event-${esc(category)}">${esc(categoryLabel(category))}</span><h2>${esc(item.title)}</h2><p>${date ? dateFromIso(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}${time ? ` · ${esc(time)}` : ''}${item.courseId ? ` · ${esc(courseName(item.courseId))}` : ''}</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div>${description ? `<p class="helper-text">${esc(description)}</p>` : ''}${item.done ? '<p class="completion-mark">Completed assignment</p>' : ''}<div class="dialog-actions">${kind === 'class' ? `<button type="button" class="button button-secondary" data-action="academic-cancel-class" data-id="${esc(id)}" data-date="${esc(date)}">Cancel this occurrence</button><button type="button" class="button button-secondary" data-action="edit" data-kind="classes" data-id="${esc(id)}">Edit recurring schedule</button>` : ''}${kind === 'custom' ? `<button type="button" class="button button-secondary" data-action="calendar-edit" data-id="${esc(id)}">Edit event</button><button type="button" class="row-action-button" data-action="calendar-delete" data-id="${esc(id)}">Delete</button>` : link ? `<a class="button button-secondary" href="${link}" data-cancel>Open ${categoryLabel(kind).toLowerCase()} list</a>` : ''}<button type="button" class="button button-primary" data-cancel>Done</button></div>`;
+  modal.innerHTML = `<div class="panel-heading"><div><span class="calendar-detail-category event-${esc(category)}">${esc(categoryLabel(category))}</span><h2>${esc(item.title)}</h2><p>${date ? dateFromIso(date).toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}${time ? ` · ${esc(time)}` : ''}${item.courseId ? ` · ${esc(courseName(item.courseId))}` : ''}</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div>${description ? `<p class="helper-text">${esc(description)}</p>` : ''}${item.done ? '<p class="completion-mark">Completed assignment</p>' : ''}<div class="dialog-actions">${kind === 'class' ? `<button type="button" class="button button-secondary" data-action="academic-cancel-class" data-id="${esc(id)}" data-date="${esc(date)}">Cancel this occurrence</button><button type="button" class="button button-secondary" data-action="edit" data-kind="classes" data-id="${esc(id)}">Edit recurring schedule</button>` : ''}${kind === 'custom' ? `<button type="button" class="button button-secondary" data-action="calendar-edit" data-id="${esc(id)}">Edit event</button><button type="button" class="row-action-button" data-action="calendar-delete" data-id="${esc(id)}">Delete</button>` : link ? `<a class="button button-secondary" href="${link}" data-cancel>Open ${categoryLabel(kind).toLowerCase()} list</a>` : ''}<button type="button" class="button button-primary" data-cancel>Done</button></div>`;
   document.body.append(modal); openDialog(modal);
   modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => closeDialog(modal)));
   modal.addEventListener('close', () => modal.remove());
@@ -1104,9 +1104,11 @@ function render() {
   window.dispatchEvent(new Event('acadely-rendered'));
   bindPage();
   syncProfileDisplay();
+  window.AcadelyI18n?.apply();
 }
 
 function bindPage() {
+  document.querySelector('#interface-language')?.addEventListener('change',event=>window.AcadelyI18n?.set(event.target.value));
   document.querySelector('#settings-form')?.addEventListener('submit', saveSettings);
   document.querySelector('#whatif-form')?.addEventListener('submit', calculateWhatIf);
   document.querySelectorAll('.final-grade-form').forEach((form) => form.addEventListener('submit', saveFinalGrade));
@@ -1618,3 +1620,15 @@ installAuthInteractions();
 document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(undefined, { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 render();
 initializeAccountService();
+
+// Display-only protection: localisation never rewrites academic or profile values.
+function acadelyProtectedText() {
+ const values=new Set();
+ for(const p of [data.studentProfile,...data.courses,...data.assignments,...data.exams,...data.events,...data.semesters])
+  for(const key of ['name','title','code','fullName','email','major','university','campus','description'])if(typeof p[key]==='string'&&p[key])values.add(p[key]);
+ for(const key of ['university','semester'])if(data.settings[key])values.add(data.settings[key]);
+ return values;
+};
+window.addEventListener('acadely-language-changed',()=>{
+ document.querySelector('.today-label')?.replaceChildren(new Date().toLocaleDateString(window.AcadelyI18n.locale,{weekday:'long',month:'long',day:'numeric'}));
+});
