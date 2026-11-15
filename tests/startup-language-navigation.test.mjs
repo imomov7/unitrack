@@ -9,7 +9,7 @@ test('workspace cannot paint before CSS or authentication finishes loading',()=>
  assert.match(html,/<div class="app-shell" hidden>/);assert.match(html,/<main id="auth-screen"[^>]* hidden/);assert.match(html,/<section id="app-boot"/);
  assert.ok(html.indexOf('[hidden]{display:none!important}')<html.indexOf('rel="stylesheet"'));assert.match(html,/<noscript>/);
  const shell={hidden:true},boot={hidden:false,setAttribute(n){if(n==='hidden')this.hidden=true;}},auth={hidden:true,innerHTML:''};
- const c=vm.createContext({document:{querySelector:s=>s==='.app-shell'?shell:s==='#app-boot'?boot:null},authScreen:auth,authMarkup:()=>'<h1>Connecting</h1>',syncTheme(){}});vm.runInContext(functionSource('showAuth'),c);vm.runInContext(functionSource('showAcadelyApp'),c);
+ const c=vm.createContext({document:{querySelector:s=>s==='.app-shell'?shell:s==='#app-boot'?boot:null},authScreen:auth,authMarkup:()=>'<h1>Connecting</h1>',syncTheme(){},pauseAcademicContext(){}});vm.runInContext(functionSource('showAuth'),c);vm.runInContext(functionSource('showAcadelyApp'),c);
  c.showAuth('loading');assert.equal(shell.hidden,true);assert.equal(auth.hidden,false);assert.equal(boot.hidden,true);
  c.showAuth('login');assert.equal(shell.hidden,true);
  c.showAcadelyApp();assert.equal(shell.hidden,false);assert.equal(auth.hidden,true);
@@ -28,7 +28,7 @@ test('Russian covers every existing translated interface key without translating
 });
 test('static assets use fresh code online, cached code offline, and never cache account APIs',async()=>{
  const handlers=new Map();let offline=false,putBody='',intercepted;
- const c=vm.createContext({URL,Request,Response,self:{registration:{scope:'https://example.test/unitrack/'},location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers.set(name,fn)},caches:{open:async()=>({match:async()=>new Response('cached app'),put:async(_,response)=>{putBody=await response.text();}})},fetch:async()=>{if(offline)throw Error('offline');return new Response('fresh app');}});
+ const c=vm.createContext({URL,Request,Response,importScripts(){},self:{registration:{scope:'https://example.test/unitrack/'},location:{origin:'https://example.test'},addEventListener:(name,fn)=>handlers.set(name,fn)},caches:{open:async()=>({match:async()=>new Response('cached app'),put:async(_,response)=>{putBody=await response.text();}})},fetch:async()=>{if(offline)throw Error('offline');return new Response('fresh app');}});
  vm.runInContext(file('service-worker.js'),c);
  const event=()=>({request:new Request('https://example.test/unitrack/js/app.js?v=new'),respondWith:p=>{intercepted=p;}});
  handlers.get('fetch')(event());assert.equal(await(await intercepted).text(),'fresh app');assert.equal(putBody,'fresh app');offline=true;handlers.get('fetch')(event());assert.equal(await(await intercepted).text(),'cached app');
