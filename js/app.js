@@ -1,14 +1,14 @@
 // ACADELY browser data layer, page rendering, and event handlers.
 // Keep KEY stable so existing student data remains available after upgrades.
 const KEY = 'unitrack-data-v1';
-const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
+const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements', 'attendance', 'notificationHistory'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.5.6';
+const APP_VERSION = '1.6.0';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo' });
 // Set a dedicated public business address here when one is available.
 const ACADELY_CONTACT_EMAIL = '';
-const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings, overview, planner, profile, about, courses: myCourses, history: academicHistory };
-const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA Calculator', calendar: 'Academic calendar', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
+const views = { dashboard, assignments, grades: gradePage, timetable, exams, gpa, calendar, settings: () => settings()+attendanceNotificationSettings(), attendance: attendancePage, overview, planner, profile, about, courses: myCourses, history: academicHistory };
+const labels = { dashboard: 'Dashboard', assignments: 'Assignments', grades: 'Grades', timetable: 'Timetable', exams: 'Exams', gpa: 'GPA Calculator', calendar: 'Academic calendar', attendance: 'Attendance', settings: 'Settings', overview: 'Semester overview', planner: 'Smart study planner', profile: 'Student profile', about: 'About ACADELY', courses: 'My Courses', history: 'Academic history' };
 const content = document.querySelector('.page-content');
 const toast = document.querySelector('#toast');
 const authScreen = document.querySelector('#auth-screen');
@@ -106,7 +106,7 @@ function defaultScale(maxGpa = 4) {
 }
 
 function defaults() {
-  return { profile: 'Student', studentProfile: { fullName: '', studentId: '', university: '', major: '', academicYear: '', semester: '', email: '', campus: '', profilePicture: '' }, creatorProfile: { name: '', email: '' }, settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, scaleCustomized: false, gradeScale: defaultScale() }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [], events: [], semesters: [], degreeRequirements: [] };
+  return { profile: 'Student', studentProfile: { fullName: '', studentId: '', university: '', major: '', academicYear: '', semester: '', email: '', campus: '', profilePicture: '' }, creatorProfile: { name: '', email: '' }, settings: { university: '', semester: '', start: '', end: '', availableHours: 2, maxGpa: 4, scaleCustomized: false, gradeScale: defaultScale() }, courses: [], assignments: [], assessments: [], classes: [], exams: [], sessions: [], events: [], semesters: [], degreeRequirements: [], attendance: [], notificationHistory: [] };
 }
 
 function sameScale(left, right) {
@@ -308,6 +308,7 @@ function authMarkup(mode = 'login', feedback = '') {
 }
 
 function showAuth(mode, feedback = '') {
+  pauseAcademicContext();
   document.querySelector('#app-boot')?.setAttribute('hidden','');
   authView = mode;
   authFeedback = feedback;
@@ -359,8 +360,9 @@ function localDataHasContent(snapshot) {
 function mergeWorkspace(local, cloud) {
   const merged = { ...local, ...cloud };
   for (const key of COLLECTIONS) {
-    const byId = new Map((local[key] || []).map((record) => [record.id, record]));
-    for (const record of cloud[key] || []) byId.set(record.id, record);
+    const identity = record => key === 'attendance' ? AcadelyAttendance.fingerprint(record) : record.id;
+    const byId = new Map((local[key] || []).map((record) => [identity(record), record]));
+    for (const record of cloud[key] || []) byId.set(identity(record), record);
     merged[key] = [...byId.values()];
   }
   const defaultsData = defaults();
@@ -1013,7 +1015,7 @@ function mondayOf(date) {
 function calendarEvents(from, to) {
   const start = isoDate(from), end = isoDate(to), events = [];
   const within = (date) => validDate(date) && date >= start && date <= end;
-  for (const item of data.assignments) if (within(item.due)) events.push({ id: item.id, kind: 'assignment', category: 'assignment', title: item.title, description: item.description || '', date: item.due, courseId: item.courseId, done: Boolean(item.done) });
+  for (const item of data.assignments) if (within(item.due)) events.push({ id: item.id, kind: 'assignment', category: 'assignment', title: item.title, description: item.description || '', date: item.due, start: item.dueTime || '', courseId: item.courseId, done: Boolean(item.done) });
   for (const item of data.exams) if (within(item.date)) events.push({ id: item.id, kind: 'exam', category: 'exam', title: item.title, description: '', date: item.date, start: item.start || '', end: item.end || '', location: item.location || '', courseId: item.courseId });
   for (const item of data.events) if (within(item.date)) events.push({ id: item.id, kind: 'custom', category: item.category || 'personal', title: item.title, description: item.description || '', date: item.date, start: item.start || '', end: item.end || '', location: item.location || '' });
   for (const item of data.classes) {
@@ -1029,7 +1031,7 @@ function calendarEvents(from, to) {
   return events.sort((a, b) => a.date.localeCompare(b.date) || String(a.start || '').localeCompare(String(b.start || '')) || a.title.localeCompare(b.title));
 }
 function categoryLabel(category) {
-  return ({ assignment: 'Assignment', exam: 'Exam', class: 'Class', deadline: 'Academic deadline', personal: 'Personal', study: 'Study', other: 'Other' })[category] || 'Personal';
+  return ({ assignment: 'Assignment', exam: 'Exam', class: 'Class', deadline: 'Academic deadline', personal: 'Personal', study: 'Study', other: 'Other', quiz: 'Quiz' })[category] || 'Personal';
 }
 function calendarEventButton(item, compact = false) {
   const time = item.start ? `${item.start}${item.end ? `–${item.end}` : ''}` : '';
@@ -1086,7 +1088,7 @@ function showCalendarEventForm(record = null) {
   const editing = Boolean(record?.id);
   const modal = document.createElement('dialog'); modal.className = 'app-dialog';
   const current = record || { date: calendarSelected || today(), category: 'personal' };
-  modal.innerHTML = `<form class="calendar-form"><div class="panel-heading"><div><h2>${editing ? 'Edit event' : 'Add event'}</h2><p>Personal calendar events are saved in this browser.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields"><label>Event title<input name="title" value="${esc(current.title || '')}" maxlength="120" required></label><label>Description<input name="description" value="${esc(current.description || '')}" maxlength="500" placeholder="Optional details"></label><label>Room or location (optional)<input name="location" value="${esc(current.location || '')}" maxlength="100"></label><label>Category<select name="category">${['personal','study','deadline','other'].map((category) => `<option value="${category}" ${current.category === category ? 'selected' : ''}>${categoryLabel(category)}</option>`).join('')}</select></label><label>Date<input name="date" type="date" value="${esc(current.date || today())}" required></label><div class="two-fields"><label>Start time<input name="start" type="time" value="${esc(current.start || '')}"></label><label>End time<input name="end" type="time" value="${esc(current.end || '')}"></label></div></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">${editing ? 'Save changes' : 'Save event'}</button></div></form>`;
+  modal.innerHTML = `<form class="calendar-form"><div class="panel-heading"><div><h2>${editing ? 'Edit event' : 'Add event'}</h2><p>Personal calendar events are saved in this browser.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields"><label>Event title<input name="title" value="${esc(current.title || '')}" maxlength="120" required></label><label>Description<input name="description" value="${esc(current.description || '')}" maxlength="500" placeholder="Optional details"></label><label>Room or location (optional)<input name="location" value="${esc(current.location || '')}" maxlength="100"></label><label>Category<select name="category">${['personal','study','quiz','deadline','other'].map((category) => `<option value="${category}" ${current.category === category ? 'selected' : ''}>${categoryLabel(category)}</option>`).join('')}</select></label><label>Date<input name="date" type="date" value="${esc(current.date || today())}" required></label><div class="two-fields"><label>Start time<input name="start" type="time" value="${esc(current.start || '')}"></label><label>End time<input name="end" type="time" value="${esc(current.end || '')}"></label></div></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">${editing ? 'Save changes' : 'Save event'}</button></div></form>`;
   document.body.append(modal); openDialog(modal);
   modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => closeDialog(modal)));
   modal.querySelector('form').addEventListener('submit', (event) => {
@@ -1111,7 +1113,8 @@ function showCalendarEventDetails(kind, id, date) {
   if (!item) return;
   const category = kind === 'custom' ? item.category : kind;
   const description = kind === 'class' ? item.location : [item.description, item.location].filter(Boolean).join(' · ');
-  const time = item.start ? `${item.start}${item.end ? `–${item.end}` : ''}` : '';
+  const eventStart = kind === 'assignment' ? item.dueTime : item.start;
+  const time = eventStart ? `${eventStart}${item.end ? `–${item.end}` : ''}` : '';
   const link = ({ assignment: '#assignments', exam: '#exams', class: '#timetable' })[kind];
   const modal = document.createElement('dialog'); modal.className = 'app-dialog calendar-details';
   modal.innerHTML = `<div class="panel-heading"><div><span class="calendar-detail-category event-${esc(category)}">${esc(categoryLabel(category))}</span><h2>${esc(item.title)}</h2><p>${date ? dateFromIso(date).toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : ''}${time ? ` · ${esc(time)}` : ''}${item.courseId ? ` · ${esc(courseName(item.courseId))}` : ''}</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div>${description ? `<p class="helper-text">${esc(description)}</p>` : ''}${item.done ? '<p class="completion-mark">Completed assignment</p>' : ''}<div class="dialog-actions">${kind === 'class' ? `<button type="button" class="button button-secondary" data-action="academic-cancel-class" data-id="${esc(id)}" data-date="${esc(date)}">Cancel this occurrence</button><button type="button" class="button button-secondary" data-action="edit" data-kind="classes" data-id="${esc(id)}">Edit recurring schedule</button>` : ''}${kind === 'custom' ? `<button type="button" class="button button-secondary" data-action="calendar-edit" data-id="${esc(id)}">Edit event</button><button type="button" class="row-action-button" data-action="calendar-delete" data-id="${esc(id)}">Delete</button>` : link ? `<a class="button button-secondary" href="${link}" data-cancel>Open ${categoryLabel(kind).toLowerCase()} list</a>` : ''}<button type="button" class="button button-primary" data-cancel>Done</button></div>`;
@@ -1138,6 +1141,8 @@ function render() {
   bindPage();
   syncProfileDisplay();
   window.AcadelyI18n?.apply();
+  updateNotificationBell();
+  queueMicrotask(() => syncAcademicNotices().catch(() => {}));
 }
 
 function bindPage() {
@@ -1147,6 +1152,7 @@ function bindPage() {
   document.querySelectorAll('.final-grade-form').forEach((form) => form.addEventListener('submit', saveFinalGrade));
   document.querySelector('#student-profile-form')?.addEventListener('submit', saveStudentProfile);
   bindSimplifiedPages();
+  bindAttendanceForms();
 }
 
 function resizeProfilePicture(file) {
@@ -1237,7 +1243,7 @@ function formFields(kind, record = {}) {
   const courses = selectCourses(record.courseId || '', kind === 'assessment');
   const fields = {
     course: `<label>Course code<input name="code" value="${esc(record.code || '')}" maxlength="30" placeholder="e.g. GCIS-123"></label><label>Course name<input name="name" value="${esc(record.name || '')}" required maxlength="100" autocomplete="off"></label><label>Credit hours<input name="credits" type="number" min="0.1" max="100" step="0.1" value="${record.credits ?? ''}" required placeholder="Credits from your syllabus"></label><label>Professor (optional)<input name="professor" value="${esc(record.professor || '')}" maxlength="120"></label>`,
-    assignment: `<label>Title<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Description<input name="description" value="${esc(record.description || '')}" maxlength="240"></label><label>Due date<input name="due" type="date" value="${esc(record.due || '')}"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="${record.studyHours ?? 2}" required></label><label>Priority<select name="priority">${['Low', 'Medium', 'High'].map((value) => `<option ${record.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`,
+    assignment: `<label>Title<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Description<input name="description" value="${esc(record.description || '')}" maxlength="240"></label><label>Due date<input name="due" type="date" value="${esc(record.due || '')}"></label><label>Deadline time (optional)<input name="dueTime" type="time" value="${esc(record.dueTime || '')}"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="${record.studyHours ?? 2}" required></label><label>Priority<select name="priority">${['Low', 'Medium', 'High'].map((value) => `<option ${record.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`,
     assessment: `<label>Assessment name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId" required>${courses}</select></label><div class="two-fields"><label>Score<input name="score" type="number" min="0" step="any" value="${record.score ?? ''}" required></label><label>Maximum marks<input name="max" type="number" min="0.01" step="any" value="${record.max ?? 100}" required></label></div><label>Course weight (%)<input name="weight" type="number" min="0.01" max="100" step="any" value="${record.weight ?? ''}" required></label>`,
     class: `<label>Course<select name="courseId" required>${courses}</select></label><fieldset class="class-days"><legend>Class days</legend>${DAYS.map(day => `<label><input type="checkbox" name="days" value="${day}" ${(record.days || [record.day || 'Monday']).includes(day) ? 'checked' : ''}>${day.slice(0,3)}</label>`).join('')}</fieldset><div class="two-fields"><label>Start<input type="time" name="start" value="${esc(record.start || '')}" required></label><label>End<input type="time" name="end" value="${esc(record.end || '')}" required></label></div><label>Room or location<input name="location" value="${esc(record.location || '')}" maxlength="100"></label>`,
     exam: `<label>Exam name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Exam date<input name="date" type="date" value="${esc(record.date || '')}" required></label><div class="two-fields"><label>Start time (optional)<input name="start" type="time" value="${esc(record.start || '')}"></label><label>End time (optional)<input name="end" type="time" value="${esc(record.end || '')}"></label></div><label>Room or location (optional)<input name="location" value="${esc(record.location || '')}" maxlength="100"></label>`,
@@ -1272,6 +1278,7 @@ function openRecordDialog(kind, record = null) {
     if (kind === 'course') { saved.name = values.name.trim(); saved.code = String(values.code || '').trim().toUpperCase(); if(saved.code && data.courses.some(c => c.id !== record?.id && AcadelyPlanning.code(c.code) === AcadelyPlanning.code(saved.code))) return msg('This course is already in your semester.'); saved.credits = Number(values.credits); if (!editing) { saved.gradeMode = 'assessments'; saved.finalGrade = null; } }
     if (kind === 'assessment') { saved.score = Number(values.score); saved.max = Number(values.max); saved.weight = Number(values.weight); }
     if (kind === 'assignment') saved.studyHours = Number(values.studyHours);
+    if ((kind === 'class' || kind === 'course') && editing) preservePendingAttendance(true);
     if (!editing) { saved.id = makeId(); data[{ course: 'courses', assignment: 'assignments', assessment: 'assessments', class: 'classes', exam: 'exams' }[kind]].push(saved); }
     else Object.assign(record, saved);
     closeDialog(modal);
@@ -1286,11 +1293,12 @@ function validateRecord(kind, values, exceptId = '') {
   if (kind === 'course' && !values.name?.trim()) return 'Please enter a course name.';
   if (kind === 'course' && (!Number.isFinite(Number(values.credits)) || Number(values.credits) <= 0 || Number(values.credits) > 100)) return 'Course credits must be greater than 0 and at most 100.';
   if (kind === 'assignment' && (!Number.isFinite(Number(values.studyHours)) || Number(values.studyHours) <= 0)) return 'Study hours must be greater than 0.';
+  if (kind === 'assignment' && values.dueTime && !AcadelyAttendance.validTime(values.dueTime)) return 'Enter a valid deadline time.';
   if (kind === 'exam' && !validDate(values.date)) return 'Choose a valid exam date.';
   if (kind === 'exam' && values.end && (!values.start || values.start >= values.end)) return 'The event end time must be after its start time.';
   if (kind === 'assignment' && values.due && !validDate(values.due)) return 'Choose a valid assignment date.';
   if (kind === 'class' && (!values.days?.length || values.days.some(day => !DAYS.includes(day)))) return 'Choose at least one class day.';
-  if (kind === 'class' && (!values.start || !values.end || values.start >= values.end)) return 'Class end time must be after its start time.';
+  if (kind === 'class' && (!values.start || !values.end || values.start === values.end)) return 'Choose different class start and end times. An earlier end time means the next day.';
   if (kind === 'assessment') {
     const score = Number(values.score), max = Number(values.max), weight = Number(values.weight);
     if (![score, max, weight].every(Number.isFinite) || max <= 0 || score < 0 || score > max || weight <= 0) return 'Enter a valid score, maximum marks, and positive course weight.';
@@ -1320,8 +1328,10 @@ function deleteRecord(collection, id) {
   if (collection === 'courses') {
     const linked = ['assessments', 'assignments', 'exams', 'classes', 'sessions'].reduce((sum, key) => sum + data[key].filter((item) => item.courseId === id).length, 0);
     if (!confirm(`Delete ${record.name} and its ${linked} linked records? This can’t be undone.`)) return;
+    preservePendingAttendance();
     for (const key of ['assessments', 'assignments', 'exams', 'classes', 'sessions']) data[key] = data[key].filter((item) => item.courseId !== id);
   } else if (!confirm('Delete this item? This can’t be undone.')) return;
+  if (collection === 'classes') preservePendingAttendance();
   data[collection] = data[collection].filter((item) => item.id !== id);
   save(); msg('Item deleted.');
 }
@@ -1413,6 +1423,12 @@ function validateImport(imported) {
   if (!Number.isFinite(available) || available < 0.25 || available > 16) throw new Error('Daily available study time must be between 0.25 and 16 hours.');
   if ((merged.settings.start && !validDate(merged.settings.start)) || (merged.settings.end && !validDate(merged.settings.end)) || (merged.settings.start && merged.settings.end && merged.settings.start > merged.settings.end)) throw new Error('Semester dates are invalid.');
   for (const course of merged.courses) if (course.credits !== undefined && (!Number.isFinite(Number(course.credits)) || Number(course.credits) < 0)) throw new Error('A course has invalid credits.');
+  const attendanceKeys = new Set();
+  for (const row of merged.attendance) {
+    if (!AcadelyAttendance.STATUSES.includes(row.status) || typeof row.occurrenceKey !== 'string' || !row.occurrenceKey || attendanceKeys.has(row.occurrenceKey) || !validDate(row.date) || !AcadelyAttendance.validTime(row.start) || !Number.isFinite(Number(row.startAt)) || typeof row.courseId !== 'string' || !AcadelyAttendance.validZone(row.timezone)) throw new Error('An attendance record is invalid or duplicated.');
+    attendanceKeys.add(row.occurrenceKey);
+  }
+  for (const row of merged.notificationHistory) if (typeof row.title !== 'string' || typeof row.body !== 'string' || !Number.isFinite(Date.parse(row.createdAt))) throw new Error('A notification history record is invalid.');
   const courseIds = new Set(merged.courses.map((course) => course.id));
   const assessmentWeights = new Map();
   for (const item of merged.assessments) {
@@ -1425,7 +1441,7 @@ function validateImport(imported) {
   for (const key of ['assignments', 'classes', 'exams', 'sessions']) for (const item of merged[key]) if (item.courseId && !courseIds.has(item.courseId)) throw new Error(`A ${key.slice(0, -1)} refers to a course that is not in this file.`);
   for (const item of merged.assignments) if ((item.due && !validDate(item.due)) || (item.studyHours !== undefined && (!Number.isFinite(Number(item.studyHours)) || Number(item.studyHours) <= 0))) throw new Error('An assignment has an invalid due date or study duration.');
   for (const item of merged.exams) if (!validDate(item.date)) throw new Error('An exam has an invalid date.');
-  const eventCategories = new Set(['personal','study','deadline','other']);
+  const eventCategories = new Set(['personal','study','quiz','deadline','other']);
   for (const item of merged.events) {
     if (typeof item.title !== 'string' || !item.title.trim() || item.title.length > 120 || !validDate(item.date) || !eventCategories.has(item.category || 'personal')) throw new Error('A calendar event has an invalid title, date, or category.');
     if (item.start && !/^([01]\d|2[0-3]):[0-5]\d$/.test(item.start)) throw new Error('A calendar event has an invalid start time.');
@@ -1597,6 +1613,7 @@ document.addEventListener('click', (event) => {
   else if (action === 'cloud-export-local') exportData();
   else if (action === 'cloud-load-remote') loadCloudCopy();
   else if (action === 'refresh-plan') render();
+  else if (action.startsWith('attendance-') || action.startsWith('notice-') || ['academic-enable-push','academic-disable-push','academic-test-push','academic-check-push'].includes(action)) handleAttendanceAction(action, control).catch(() => msg('The action could not finish. Please try again.'));
   else if (action.startsWith('academic-')) handleAcademicAction(action, control);
   else if (action.startsWith('ux-')) handleSimpleAction(action, control);
 });
@@ -1655,6 +1672,7 @@ installAuthInteractions();
 document.querySelector('#top-date').textContent = new Intl.DateTimeFormat(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date());
 render();
 initializeAccountService();
+initializeAcademicNotices();
 
 // Refresh date labels when safe; editable forms keep their existing DOM and values.
 function refreshLanguageView() {

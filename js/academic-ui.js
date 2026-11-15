@@ -127,6 +127,7 @@ function startPlannedSemester(plan,allowEmpty=false,confirmed=false) {
     old={id:makeId(),status:'completed',name:data.settings.semester,start:data.settings.start,end:data.settings.end,maxGpa:Number(data.settings.maxGpa),university:data.settings.university||'',courses:result.courses.map(row=>({id:makeId(),code:row.course.code||'',name:row.course.name,credits:row.credits,finalGrade:row.completion>=100&&row.percentage!==null?String(row.percentage)+'%':'',points:row.completion>=100&&row.points!==null?row.points:'',completed:false}))};data.semesters.push(old);
   }
   if(old){if(!Array.isArray(old.workspaceSnapshots))old.workspaceSnapshots=[];old.workspaceSnapshots.push({savedAt:new Date().toISOString(),data:JSON.parse(JSON.stringify(Object.fromEntries(['settings','courses','assignments','assessments','classes','exams','sessions','events'].map(k=>[k,data[k]]))))});}
+  preservePendingAttendance();
   for(const k of ['assignments','assessments','classes','exams','sessions','events'])data[k]=[];
   data.courses=plan.courses.map(c=>({...c,id:makeId(),gradeMode:'assessments',finalGrade:null}));
   data.settings={...data.settings,semester:plan.name,start:plan.start,end:plan.end};data.semesters=data.semesters.filter(s=>s.id!==plan.id);document.querySelectorAll('dialog[open]').forEach(closeDialog);save();msg('Your new semester is ready.');return true;
