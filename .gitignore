@@ -1,0 +1,7 @@
+
+# Private server credentials must never be committed.
+.env
+.env.*
+*.env
+node_modules/
+.supabase/
