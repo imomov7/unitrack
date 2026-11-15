@@ -134,3 +134,6 @@ The separate language toolbar has been removed. A translation icon beside the ex
 - About retains creator/contact content, with “Acadely contact — not configured yet” until a dedicated public business email is set in `ACADELY_CONTACT_EMAIL` in `js/app.js`. No personal email is bundled as public contact. Signed-in account emails remain private account information.
 - Semester / known RIT spelling correction and short course-label capitalization are presentation-only helpers. Saved values, editable inputs, university matching, history, GPA and sync continue using original data. Short one-character course names carry a review hint; their real identity is not guessed.
 - Static cache version 15 and asset revision updated to deliver the fixes. No storage migration, data reset or database changes.
+
+### 1.5.5 — verification and planner reliability
+A full verification pass found repeatable study suggestions and past-dated overdue sessions. Suggestions now subtract saved/completed workload, respect each date’s booked hours, schedule overdue work today, and are rechecked when clicked. Existing records and calculations are preserved. See `AUDIT-2026-11-15.md` for the checked flows and explicit testing limits. Automated suite: 65 passing tests.
