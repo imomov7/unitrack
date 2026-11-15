@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.5.4';
+const APP_VERSION = '1.5.5';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo' });
 // Set a dedicated public business address here when one is available.
 const ACADELY_CONTACT_EMAIL = '';
@@ -972,13 +972,26 @@ function makePlan() {
     };
     return urgency(b) - urgency(a);
   });
-  let available = Number(data.settings.availableHours) || 2;
+  const dailyHours = Number(data.settings.availableHours) || 2;
+  const bookedByDate = new Map(), bookedByTask = new Map();
+  for (const session of data.sessions) {
+    const hours = Number(session.hours);
+    if (!Number.isFinite(hours) || hours <= 0) continue;
+    bookedByDate.set(session.date, (bookedByDate.get(session.date) || 0) + hours);
+    if (session.sourceId) bookedByTask.set(session.sourceId, (bookedByTask.get(session.sourceId) || 0) + hours);
+  }
   return tasks.map((task) => {
-    const hours = Math.min(available, Math.max(0.25, Number(task.studyHours) || (task.exam ? 1.5 : 1)));
-    available -= hours;
+    // Saved and completed sessions already cover part of the workload. Never
+    // offer that work twice or book more than the configured hours on one day.
+    const date = task.due < today() ? today() : task.due;
+    const workload = Math.max(0.25, Number(task.studyHours) || (task.exam ? 1.5 : 1));
+    const remaining = Math.max(0, workload - (bookedByTask.get(task.id) || 0));
+    const available = Math.max(0, dailyHours - (bookedByDate.get(date) || 0));
+    const hours = Math.min(available, remaining);
+    bookedByDate.set(date, (bookedByDate.get(date) || 0) + hours);
     const delta = daysUntil(task.due);
     const why = delta < 0 ? 'Overdue work prioritized' : delta <= 2 ? 'Due very soon' : task.exam ? 'Upcoming exam preparation' : task.priority === 'High' ? 'High priority deadline' : 'Earlier deadline prioritized';
-    return { task, hours, why, date: task.due };
+    return { task, hours, why, date };
   }).filter((plan) => plan.hours > 0);
 }
 function planRow(plan) { return `<div class="data-row"><div><strong>${esc(plan.task.title)} · ${plan.hours.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}h</strong><small>${esc(courseName(plan.task.courseId))} · ${dateLabel(plan.date)} · ${esc(plan.why)}</small></div></div>`; }
@@ -1552,7 +1565,8 @@ document.addEventListener('click', (event) => {
   } else if (action === 'save-plan') {
     const source = control.dataset.exam === 'true' ? data.exams : data.assignments;
     const item = source.find((record) => record.id === id);
-    if (item) { data.sessions.push({ id: makeId(), title: item.title, courseId: item.courseId, date: control.dataset.date, hours: Number(control.dataset.hours), reason: control.dataset.exam === 'true' ? 'Exam preparation' : 'Deadline-focused study', done: false, sourceId: item.id }); save(); msg('Study session added.'); }
+    const suggestion = item && makePlan().find(plan => plan.task.id === item.id && plan.task.exam === (control.dataset.exam === 'true'));
+    if (suggestion) { data.sessions.push({ id: makeId(), title: item.title, courseId: item.courseId, date: suggestion.date, hours: suggestion.hours, reason: control.dataset.exam === 'true' ? 'Exam preparation' : 'Deadline-focused study', done: false, sourceId: item.id }); save(); msg('Study session added.'); }
   } else if (action === 'session-toggle') { const session = data.sessions.find((record) => record.id === id); if (session) { session.done = !session.done; save(); } }
   else if (action === 'session-delete') { if (confirm('Delete this study session?')) { data.sessions = data.sessions.filter((session) => session.id !== id); save(); } }
   else if (action === 'session-edit') editSession(id);
