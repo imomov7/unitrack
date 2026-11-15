@@ -1,5 +1,14 @@
 // Arabic UI catalogue. Official names and user content are preserved.
 window.ACADELY_AR = {
+  "Time not set": "لم يُحدد الوقت",
+  "Date only": "تاريخ فقط",
+  "Location not set": "لم يُحدد المكان",
+  "Monthly calendar": "التقويم الشهري",
+  "Swipe or scroll sideways to see all days. Use Day for a full-day list.": "اسحب أفقيًا لرؤية كل الأيام. اختر يومًا لعرض قائمته كاملة.",
+  "Start time (optional)": "وقت البداية (اختياري)",
+  "End time (optional)": "وقت النهاية (اختياري)",
+  "Room or location (optional)": "القاعة أو المكان (اختياري)",
+
   "Acadely contact — not configured yet": "التواصل مع Acadely — لم يتم إعداده بعد",
   "Review course name": "راجع اسم المقرر",
   "Course name not provided": "لم يُدخل اسم المقرر",
