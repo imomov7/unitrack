@@ -1,0 +1,7 @@
+# Existing delete-account function remains unchanged.
+[functions.academic-api]
+verify_jwt = true
+[functions.academic-dispatch]
+# Only the dispatcher is called by Cron; it checks a private, 32+ character
+# x-acadely-cron secret before accessing any data. It exposes no user endpoint.
+verify_jwt = false
