@@ -1,5 +1,14 @@
 // Russian UI catalogue. Official names and user content are preserved.
 window.ACADELY_RU = {
+  "Time not set": "Время не указано",
+  "Date only": "Только дата",
+  "Location not set": "Место не указано",
+  "Monthly calendar": "Календарь на месяц",
+  "Swipe or scroll sideways to see all days. Use Day for a full-day list.": "Прокрутите вбок, чтобы увидеть все дни. Выберите «День» для полного списка.",
+  "Start time (optional)": "Время начала (необязательно)",
+  "End time (optional)": "Время окончания (необязательно)",
+  "Room or location (optional)": "Аудитория или место (необязательно)",
+
   "Acadely contact — not configured yet": "Контакт Acadely — пока не настроен",
   "Review course name": "Проверьте название курса",
   "Course name not provided": "Название курса не указано",

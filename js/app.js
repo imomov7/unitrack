@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.5.5';
+const APP_VERSION = '1.5.6';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo' });
 // Set a dedicated public business address here when one is available.
 const ACADELY_CONTACT_EMAIL = '';
@@ -1014,13 +1014,13 @@ function calendarEvents(from, to) {
   const start = isoDate(from), end = isoDate(to), events = [];
   const within = (date) => validDate(date) && date >= start && date <= end;
   for (const item of data.assignments) if (within(item.due)) events.push({ id: item.id, kind: 'assignment', category: 'assignment', title: item.title, description: item.description || '', date: item.due, courseId: item.courseId, done: Boolean(item.done) });
-  for (const item of data.exams) if (within(item.date)) events.push({ id: item.id, kind: 'exam', category: 'exam', title: item.title, description: '', date: item.date, courseId: item.courseId });
-  for (const item of data.events) if (within(item.date)) events.push({ id: item.id, kind: 'custom', category: item.category || 'personal', title: item.title, description: item.description || '', date: item.date, start: item.start || '', end: item.end || '' });
+  for (const item of data.exams) if (within(item.date)) events.push({ id: item.id, kind: 'exam', category: 'exam', title: item.title, description: '', date: item.date, start: item.start || '', end: item.end || '', location: item.location || '', courseId: item.courseId });
+  for (const item of data.events) if (within(item.date)) events.push({ id: item.id, kind: 'custom', category: item.category || 'personal', title: item.title, description: item.description || '', date: item.date, start: item.start || '', end: item.end || '', location: item.location || '' });
   for (const item of data.classes) {
     if (!(item.days || [item.day]).some(day => DAYS.includes(day))) continue;
     const cursor = new Date(from.getFullYear(), from.getMonth(), from.getDate(), 12);
     while (isoDate(cursor) <= end) {
-      if (AcadelyPlanning.classOccurs(item, isoDate(cursor), data.settings)) events.push({ id: `${item.id}-${isoDate(cursor)}`, sourceId: item.id, kind: 'class', category: 'class', title: item.title, description: item.location || '', date: isoDate(cursor), start: item.start || '', end: item.end || '', courseId: item.courseId });
+      if (AcadelyPlanning.classOccurs(item, isoDate(cursor), data.settings)) events.push({ id: `${item.id}-${isoDate(cursor)}`, sourceId: item.id, kind: 'class', category: 'class', title: item.courseId ? courseName(item.courseId) : item.title, description: item.location || '', location: item.location || '', date: isoDate(cursor), start: item.start || '', end: item.end || '', courseId: item.courseId });
       cursor.setDate(cursor.getDate() + 1);
     }
   }
@@ -1032,8 +1032,11 @@ function categoryLabel(category) {
   return ({ assignment: 'Assignment', exam: 'Exam', class: 'Class', deadline: 'Academic deadline', personal: 'Personal', study: 'Study', other: 'Other' })[category] || 'Personal';
 }
 function calendarEventButton(item, compact = false) {
-  const time = item.start ? `${item.start} ` : '';
-  return `<button type="button" class="calendar-event event-${esc(item.category)}${item.done ? ' is-complete' : ''}" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}" title="${esc(categoryLabel(item.category) + ': ' + item.title)}"><span class="event-dot"></span>${compact ? '' : `<span class="event-time">${esc(time)}</span>`}<span class="event-title" translate="no">${esc(item.title)}</span></button>`;
+  const time = item.start ? `${item.start}${item.end ? `–${item.end}` : ''}` : '';
+  const location = item.location || (item.kind === 'class' ? item.description : '');
+  const course = item.courseId && item.kind !== 'class' ? courseName(item.courseId) : '';
+  const summary = [categoryLabel(item.category), item.title, time, location].filter(Boolean).join(' · ');
+  return `<button type="button" class="calendar-event event-${esc(item.category)}${item.done ? ' is-complete' : ''}" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}" title="${esc(summary)}"><span class="event-type">${esc(categoryLabel(item.category))}</span><span class="event-title" translate="no" dir="auto">${esc(item.title)}</span>${course ? `<span class="event-course" translate="no" dir="auto">${esc(course)}</span>` : ''}${time ? `<span class="event-time" dir="ltr">${esc(time)}</span>` : `<span class="event-time">${item.kind === 'class' || item.kind === 'exam' ? 'Time not set' : 'Date only'}</span>`}${location ? `<span class="event-location" translate="no" dir="auto">${esc(location)}</span>` : item.kind === 'class' || item.kind === 'exam' ? '<span class="event-location">Location not set</span>' : ''}${item.done ? '<span class="event-completed">Completed</span>' : ''}</button>`;
 }
 function monthGrid() {
   const first = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1, 12);
@@ -1043,9 +1046,9 @@ function monthGrid() {
   const cells = Array.from({ length: 42 }, (_, index) => {
     const day = new Date(start); day.setDate(start.getDate() + index);
     const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
-    return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.slice(0, 3).map((item) => calendarEventButton(item, true)).join('')}${items.length > 3 ? `<span class="calendar-more">+${items.length - 3} more</span>` : ''}</div></div>`;
+    return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.map((item) => calendarEventButton(item, true)).join('')}</div></div>`;
   }).join('');
-  return `<div class="calendar-month-grid">${headings}${cells}</div>`;
+  return `<p class="helper-text calendar-scroll-hint">Swipe or scroll sideways to see all days. Use Day for a full-day list.</p><div class="calendar-scroll" role="region" aria-label="Monthly calendar" tabindex="0"><div class="calendar-month-grid">${headings}${cells}</div></div>`;
 }
 function weekGrid(start) {
   const end = new Date(start); end.setDate(end.getDate() + 6);
@@ -1068,7 +1071,7 @@ function calendarTitle(from, to) {
 }
 function calendarAgenda(date) {
   const events = calendarEvents(dateFromIso(date), dateFromIso(date));
-  return events.length ? events.map((item) => `<div class="calendar-agenda-row"><span class="calendar-category-dot event-${esc(item.category)}"></span><div><strong>${esc(item.title)}</strong><small>${esc(categoryLabel(item.category))}${item.start ? ` · ${esc(item.start)}${item.end ? `–${esc(item.end)}` : ''}` : ''}${item.courseId ? ` · ${esc(courseName(item.courseId))}` : ''}${item.description ? ` · ${esc(item.description)}` : ''}${item.done ? ' · Completed' : ''}</small></div><button type="button" class="row-action-button" data-action="calendar-event" data-kind="${esc(item.kind)}" data-id="${esc(item.sourceId || item.id)}" data-date="${esc(item.date)}">Details</button></div>`).join('') : `<div class="empty-state compact"><button type="button" class="empty-icon empty-add" data-action="calendar-add" aria-label="Add calendar event">＋</button><strong>Nothing scheduled</strong><span>Add a personal event or use assignments, exams, and the timetable to fill your calendar.</span></div>`;
+  return events.length ? events.map(item => calendarEventButton(item)).join('') : `<div class="empty-state compact"><button type="button" class="empty-icon empty-add" data-action="calendar-add" aria-label="Add calendar event">＋</button><strong>Nothing scheduled</strong><span>Add a personal event or use assignments, exams, and the timetable to fill your calendar.</span></div>`;
 }
 function calendar() {
   const { from, to } = calendarRange();
@@ -1083,15 +1086,15 @@ function showCalendarEventForm(record = null) {
   const editing = Boolean(record?.id);
   const modal = document.createElement('dialog'); modal.className = 'app-dialog';
   const current = record || { date: calendarSelected || today(), category: 'personal' };
-  modal.innerHTML = `<form class="calendar-form"><div class="panel-heading"><div><h2>${editing ? 'Edit event' : 'Add event'}</h2><p>Personal calendar events are saved in this browser.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields"><label>Event title<input name="title" value="${esc(current.title || '')}" maxlength="120" required></label><label>Description<input name="description" value="${esc(current.description || '')}" maxlength="500" placeholder="Optional details"></label><label>Category<select name="category">${['personal','study','deadline','other'].map((category) => `<option value="${category}" ${current.category === category ? 'selected' : ''}>${categoryLabel(category)}</option>`).join('')}</select></label><label>Date<input name="date" type="date" value="${esc(current.date || today())}" required></label><div class="two-fields"><label>Start time<input name="start" type="time" value="${esc(current.start || '')}"></label><label>End time<input name="end" type="time" value="${esc(current.end || '')}"></label></div></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">${editing ? 'Save changes' : 'Save event'}</button></div></form>`;
+  modal.innerHTML = `<form class="calendar-form"><div class="panel-heading"><div><h2>${editing ? 'Edit event' : 'Add event'}</h2><p>Personal calendar events are saved in this browser.</p></div><button type="button" class="close-dialog" data-cancel aria-label="Close">×</button></div><div class="dialog-fields"><label>Event title<input name="title" value="${esc(current.title || '')}" maxlength="120" required></label><label>Description<input name="description" value="${esc(current.description || '')}" maxlength="500" placeholder="Optional details"></label><label>Room or location (optional)<input name="location" value="${esc(current.location || '')}" maxlength="100"></label><label>Category<select name="category">${['personal','study','deadline','other'].map((category) => `<option value="${category}" ${current.category === category ? 'selected' : ''}>${categoryLabel(category)}</option>`).join('')}</select></label><label>Date<input name="date" type="date" value="${esc(current.date || today())}" required></label><div class="two-fields"><label>Start time<input name="start" type="time" value="${esc(current.start || '')}"></label><label>End time<input name="end" type="time" value="${esc(current.end || '')}"></label></div></div><div class="dialog-actions"><button type="button" class="button button-secondary" data-cancel>Cancel</button><button class="button button-primary">${editing ? 'Save changes' : 'Save event'}</button></div></form>`;
   document.body.append(modal); openDialog(modal);
   modal.querySelectorAll('[data-cancel]').forEach((button) => button.addEventListener('click', () => closeDialog(modal)));
   modal.querySelector('form').addEventListener('submit', (event) => {
     event.preventDefault(); const fields = new FormData(event.currentTarget), date = String(fields.get('date') || ''), start = String(fields.get('start') || ''), end = String(fields.get('end') || '');
     const title = String(fields.get('title') || '').trim();
     if (!title || title.length > 120 || !validDate(date)) return msg('Enter an event title and a valid date.');
-    if (start && end && start >= end) return msg('The event end time must be after its start time.');
-    const saved = { ...(record || {}), title, description: String(fields.get('description') || '').trim(), category: String(fields.get('category') || 'personal'), date, start, end };
+    if (end && (!start || start >= end)) return msg('The event end time must be after its start time.');
+    const saved = { ...(record || {}), title, description: String(fields.get('description') || '').trim(), category: String(fields.get('category') || 'personal'), date, start, end, location: String(fields.get('location') || '').trim() };
     if (!editing) { saved.id = makeId(); data.events.push(saved); } else Object.assign(record, saved);
     calendarSelected = date; calendarCursor = dateFromIso(date); closeDialog(modal); save(); msg(editing ? 'Event updated.' : 'Event saved.');
   });
@@ -1107,7 +1110,7 @@ function showCalendarEventDetails(kind, id, date) {
   else if (kind === 'deadline') item = { title: id === 'semester-start' ? 'Semester begins' : 'Semester ends', description: data.settings.semester || '', date };
   if (!item) return;
   const category = kind === 'custom' ? item.category : kind;
-  const description = kind === 'class' ? item.location : item.description;
+  const description = kind === 'class' ? item.location : [item.description, item.location].filter(Boolean).join(' · ');
   const time = item.start ? `${item.start}${item.end ? `–${item.end}` : ''}` : '';
   const link = ({ assignment: '#assignments', exam: '#exams', class: '#timetable' })[kind];
   const modal = document.createElement('dialog'); modal.className = 'app-dialog calendar-details';
@@ -1237,7 +1240,7 @@ function formFields(kind, record = {}) {
     assignment: `<label>Title<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Description<input name="description" value="${esc(record.description || '')}" maxlength="240"></label><label>Due date<input name="due" type="date" value="${esc(record.due || '')}"></label><label>Estimated study hours<input name="studyHours" type="number" min="0.25" max="100" step="0.25" value="${record.studyHours ?? 2}" required></label><label>Priority<select name="priority">${['Low', 'Medium', 'High'].map((value) => `<option ${record.priority === value ? 'selected' : ''}>${value}</option>`).join('')}</select></label>`,
     assessment: `<label>Assessment name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId" required>${courses}</select></label><div class="two-fields"><label>Score<input name="score" type="number" min="0" step="any" value="${record.score ?? ''}" required></label><label>Maximum marks<input name="max" type="number" min="0.01" step="any" value="${record.max ?? 100}" required></label></div><label>Course weight (%)<input name="weight" type="number" min="0.01" max="100" step="any" value="${record.weight ?? ''}" required></label>`,
     class: `<label>Course<select name="courseId" required>${courses}</select></label><fieldset class="class-days"><legend>Class days</legend>${DAYS.map(day => `<label><input type="checkbox" name="days" value="${day}" ${(record.days || [record.day || 'Monday']).includes(day) ? 'checked' : ''}>${day.slice(0,3)}</label>`).join('')}</fieldset><div class="two-fields"><label>Start<input type="time" name="start" value="${esc(record.start || '')}" required></label><label>End<input type="time" name="end" value="${esc(record.end || '')}" required></label></div><label>Room or location<input name="location" value="${esc(record.location || '')}" maxlength="100"></label>`,
-    exam: `<label>Exam name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Exam date<input name="date" type="date" value="${esc(record.date || '')}" required></label>`,
+    exam: `<label>Exam name<input name="title" value="${esc(record.title || '')}" required maxlength="100"></label><label>Course<select name="courseId">${courses}</select></label><label>Exam date<input name="date" type="date" value="${esc(record.date || '')}" required></label><div class="two-fields"><label>Start time (optional)<input name="start" type="time" value="${esc(record.start || '')}"></label><label>End time (optional)<input name="end" type="time" value="${esc(record.end || '')}"></label></div><label>Room or location (optional)<input name="location" value="${esc(record.location || '')}" maxlength="100"></label>`,
   };
   return fields[kind];
 }
@@ -1284,6 +1287,7 @@ function validateRecord(kind, values, exceptId = '') {
   if (kind === 'course' && (!Number.isFinite(Number(values.credits)) || Number(values.credits) <= 0 || Number(values.credits) > 100)) return 'Course credits must be greater than 0 and at most 100.';
   if (kind === 'assignment' && (!Number.isFinite(Number(values.studyHours)) || Number(values.studyHours) <= 0)) return 'Study hours must be greater than 0.';
   if (kind === 'exam' && !validDate(values.date)) return 'Choose a valid exam date.';
+  if (kind === 'exam' && values.end && (!values.start || values.start >= values.end)) return 'The event end time must be after its start time.';
   if (kind === 'assignment' && values.due && !validDate(values.due)) return 'Choose a valid assignment date.';
   if (kind === 'class' && (!values.days?.length || values.days.some(day => !DAYS.includes(day)))) return 'Choose at least one class day.';
   if (kind === 'class' && (!values.start || !values.end || values.start >= values.end)) return 'Class end time must be after its start time.';
