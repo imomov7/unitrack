@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements', 'attendance', 'notificationHistory'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.7.1';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo' });
 // Set a dedicated public business address here when one is available.
 const ACADELY_CONTACT_EMAIL = '';
@@ -39,6 +39,7 @@ let localChangeVersion = 0;
 let lastSyncedChangeVersion = 0;
 let cloudSyncTimer = null;
 let cloudSyncPromise = Promise.resolve();
+let cloudRecoveryTimer=null,cloudRecoveryAttempt=0,cloudRecoveryOwner=null,cloudRetryOwner=null,cloudWriteOwner=null;
 let cloudChannel = null;
 let cloudWriteSnapshot = null;
 let cloudWriteVersion = 0;
@@ -327,9 +328,20 @@ function showAcadelyApp() {
   document.querySelector('.app-shell').hidden = false;
 }
 
+function resetCloudRecovery(){clearTimeout(cloudRecoveryTimer);cloudRecoveryTimer=null;cloudRecoveryAttempt=0;cloudRecoveryOwner=null;}
+function scheduleCloudRecovery(){
+ if(!accountUser||cloudConflict||navigator.onLine===false)return;
+ if(cloudRecoveryOwner!==accountUser.id){resetCloudRecovery();cloudRecoveryOwner=accountUser.id;}
+ if(cloudRecoveryTimer!==null||cloudRecoveryAttempt>=3)return;
+ const owner=accountUser.id,delay=[10000,30000,60000][cloudRecoveryAttempt];
+ cloudRecoveryTimer=setTimeout(()=>{cloudRecoveryTimer=null;if(accountUser?.id!==owner)return;cloudRecoveryAttempt++;retryCloudSync(true);},delay);
+}
 function setCloudStatus(state, message = '') {
   const notice = document.querySelector('#cloud-status');
   if (!notice) return;
+  if(state==='synced'||state==='local')resetCloudRecovery();
+  else if(state==='conflict'){clearTimeout(cloudRecoveryTimer);cloudRecoveryTimer=null;}
+  else if(state==='failed')scheduleCloudRecovery();
   notice.dataset.state = state;
   notice.hidden = state === 'local' || state === 'synced';
   const labelsByState = {
@@ -615,6 +627,7 @@ function scheduleCloudSync() {
 async function flushCloudSync() {
   if (!accountUser || !cloudReady || cloudConflict || localChangeVersion <= lastSyncedChangeVersion) return;
   const userId=accountUser.id;
+  if(cloudWriteOwner===userId)return;cloudWriteOwner=userId;
   const version = localChangeVersion;
   const snapshot = JSON.parse(JSON.stringify(data));
   cloudWriteSnapshot = snapshot;
@@ -640,26 +653,30 @@ async function flushCloudSync() {
     cloudConflict = conflict;
     cloudReady = !conflict;
     setCloudStatus(conflict ? 'conflict' : 'failed');
-  }
+  } finally {if(cloudWriteOwner===userId)cloudWriteOwner=null;}
 }
 
-async function retryCloudSync() {
-  if (!accountUser) return;
+async function retryCloudSync(automatic=false) {
+  if (!accountUser || cloudRetryOwner===accountUser.id) return;
+  const owner=accountUser.id;cloudRetryOwner=owner;
+  if(!automatic)resetCloudRecovery();
+  setCloudStatus('syncing');
   try {
     const workspace = await window.AcadelyCloudService.loadWorkspace();
+    if(accountUser?.id!==owner)return;
     if (workspace && Number(workspace.revision) !== cloudRevision) {
-      cloudConflict = true;
-      cloudReady = false;
-      setCloudStatus('conflict');
-      return;
+      if(localChangeVersion>lastSyncedChangeVersion){cloudConflict=true;cloudReady=false;setCloudStatus('conflict');return;}
+      // An unchanged cache can safely catch up. Pending edits never take this path.
+      data=validateImport(workspace.data);render();
     }
     cloudRevision = Number(workspace?.revision) || 0;
     cloudReady = true;
     cloudConflict = false;
-    attachWorkspaceRealtime(accountUser.id);
-    if (localChangeVersion > lastSyncedChangeVersion) flushCloudSync();
+    persistCloudCache();attachWorkspaceRealtime(owner);
+    if (localChangeVersion > lastSyncedChangeVersion) await flushCloudSync();
     else setCloudStatus('synced');
-  } catch { setCloudStatus('failed'); }
+  } catch { if(accountUser?.id===owner)setCloudStatus('failed'); }
+  finally {if(cloudRetryOwner===owner)cloudRetryOwner=null;}
 }
 
 async function loadCloudCopy() {
