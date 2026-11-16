@@ -1,5 +1,13 @@
 // Arabic UI catalogue. Official names and user content are preserved.
 window.ACADELY_AR = {
+  "Enable academic reminders first. The switch saves automatically.": "فعّل التذكيرات الأكاديمية أولًا. يُحفظ المفتاح تلقائيًا.",
+  "Connecting this device to notifications…": "جارٍ توصيل هذا الجهاز بالإشعارات…",
+  "The app worker is not ready. Reload Acadely and try again.": "خدمة التطبيق غير جاهزة. أعد تحميل Acadely وحاول مجددًا.",
+  "Device notification setup timed out. Please try again.": "انتهت مهلة إعداد إشعارات الجهاز. حاول مجددًا.",
+  "The notification server did not respond. Please try again.": "لم يستجب خادم الإشعارات. حاول مجددًا.",
+  "Queuing test notification…": "جارٍ إرسال الإشعار التجريبي إلى قائمة الانتظار…",
+  "Test queued. Allow up to one minute for delivery. Check device notification permissions if it does not arrive.": "تمت إضافة الاختبار إلى قائمة الانتظار. انتظر حتى دقيقة لوصوله. تحقق من أذونات إشعارات الجهاز إذا لم يصل.",
+
   "Some timetable classes need a course link before attendance can be tracked.": "بعض محاضرات الجدول تحتاج إلى ربطها بمقرر قبل متابعة الحضور.",
   "Open class schedule": "فتح جدول المحاضرات",
 
