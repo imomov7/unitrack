@@ -71,3 +71,7 @@ test('subscription errors are visible and cannot produce a false queued-test mes
 test('rapid repeat taps cannot duplicate enrollment or test jobs',async()=>{
  const h=pushUiHarness();await Promise.all([h.run('testAcademicPush()'),h.run('testAcademicPush()')]);assert.equal(h.calls.filter(x=>x.action==='test').length,1);assert.equal(h.calls.filter(x=>x.action==='subscribe').length,1);
 });
+
+test('a cached enabled-device flag does not skip confirming its server subscription before a test',async()=>{
+ const h=pushUiHarness();h.run('academicDeviceEnabled=true');await h.run('testAcademicPush()');assert.deepEqual(h.calls.filter(x=>['subscribe','test'].includes(x.action)).map(x=>x.action),['subscribe','test']);
+});
