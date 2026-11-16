@@ -120,8 +120,8 @@ async function enableAcademicPush(){
 async function testAcademicPush(){
  if(academicPushBusy)return;
  const owner=accountUser?.id;
- if(!academicDeviceEnabled){if(!await enableAcademicPush())return;}
- else if(!prepareAcademicPush())return;
+ // Verify the server subscription even when a cached browser subscription exists.
+ if(!await enableAcademicPush())return;
  if(!owner||accountUser?.id!==owner)return;
  academicPushBusy=true;render();msg('Queuing test notification…');
  try{
