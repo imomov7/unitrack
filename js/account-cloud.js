@@ -175,6 +175,11 @@
     return Array.isArray(result) ? result[0] : result;
   }
 
+  async function academicRequest(body) {
+    const {data,error}=await client.functions.invoke('academic-api',{body});
+    if(error)throw error;return data;
+  }
+
   function subscribeWorkspace(userId, onChange) {
     return client.channel(`acadely-workspace-${userId}`)
       .on('postgres_changes', {
@@ -198,6 +203,6 @@
   window.AcadelyCloudService = {
     configured, initialize, signUp, signIn, setRemember, sendPasswordReset, resendSignupConfirmation,
     updatePassword, updateEmail, getOrCreateProfile, saveStudentProfile, signOut,
-    deleteAccount, loadWorkspace, saveWorkspace, subscribeWorkspace, subscribeProfile, closeRealtime,
+    deleteAccount, loadWorkspace, saveWorkspace, academicRequest, subscribeWorkspace, subscribeProfile, closeRealtime,
   };
 })();

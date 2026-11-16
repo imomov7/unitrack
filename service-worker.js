@@ -1,7 +1,8 @@
+importScripts(new URL('./js/push-store.js', self.registration.scope).href);
 /* ACADELY static shell cache. User data remains in browser LocalStorage and is
    never written to Cache Storage. Keep this worker and manifest under /unitrack/.
 */
-const CACHE_NAME = 'acadely-shell-v17';
+const CACHE_NAME = 'acadely-shell-v18';
 const BASE_URL = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './index.html',
@@ -20,6 +21,10 @@ const SHELL_FILES = [
   './js/startup.js',
   './assets/data/majors.js',
   './js/app.js',
+  './js/attendance-core.js',
+  './js/attendance-ui.js',
+  './js/push-store.js',
+  './js/push-config.js',
   './js/account-cloud.js',
   './js/supabase-config.js',
   './assets/branding/favicon.svg',
@@ -127,4 +132,35 @@ self.addEventListener('fetch', (event) => {
       return cached || new Response('Acadely asset unavailable offline. Reconnect and reload.', { status: 503 });
     })());
   }
+});
+
+// Encrypted Web Push delivery is independent of open pages and browser timers.
+self.addEventListener('push',event=>{
+ event.waitUntil((async()=>{
+  let payload;try{payload=event.data?.json();}catch{payload=null;}
+  const context=await self.AcadelyPushStore.get('context').catch(()=>null);
+  const owned=payload&&typeof payload.userId==='string'&&context?.userId===payload.userId;
+  const text=value=>String(value||'').slice(0,1500);
+  const route=owned&&['attendance','assignments','calendar','exams'].includes(payload.route)?payload.route:'attendance';
+  const language=owned?payload.language:'en';
+  const labels={ar:['حاضر','غائب'],ru:['Присутствовал','Отсутствовал'],en:['Present','Absent']}[language]||['Present','Absent'];
+  const options={body:owned?text(payload.body):'Open Acadely to review your academic reminders.',icon:new URL('assets/branding/acadely-pwa-192.png',BASE_URL).href,badge:new URL('assets/branding/favicon-32.png',BASE_URL).href,tag:owned?'acadely:'+text(payload.id):'acadely-private-reminder',renotify:false,data:owned?{id:text(payload.id),userId:payload.userId,route,occurrenceKey:text(payload.occurrenceKey),start:text(payload.start),date:text(payload.date),assignmentId:text(payload.assignmentId),examId:text(payload.examId),eventId:text(payload.eventId),createdAt:Date.now() }:{route:'attendance'}};
+  if(owned&&payload.category==='attendance')options.actions=[{action:'present',title:labels[0]},{action:'absent',title:labels[1]}];
+  // Always show a visible notification: Safari rejects silent Web Push. Signed-out
+  // devices get a generic notice with no other account's academic information.
+  try{await self.registration.showNotification(owned?text(payload.title):'Acadely',options);}catch(error){if(!options.actions)throw error;delete options.actions;await self.registration.showNotification(owned?text(payload.title):'Acadely',options);}
+  for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true}))client.postMessage({type:'ACADELY_PUSH_RECEIVED'});
+ })());
+});
+self.addEventListener('notificationclick',event=>{
+ event.notification.close();event.waitUntil((async()=>{
+  const payload=event.notification.data||{},context=await self.AcadelyPushStore.get('context').catch(()=>null);
+  const owned=payload.userId&&payload.userId===context?.userId;
+  const route=owned&&['attendance','assignments','calendar','exams'].includes(payload.route)?payload.route:'attendance';
+  if(owned)await self.AcadelyPushStore.queueIntent({id:String(payload.id||payload.occurrenceKey||'notice')+':'+(event.action||'open'),userId:payload.userId,route,occurrenceKey:payload.occurrenceKey||'',start:payload.start||'',date:payload.date||'',assignmentId:payload.assignmentId||'',examId:payload.examId||'',eventId:payload.eventId||'',status:['present','absent'].includes(event.action)?event.action:'',createdAt:Date.now()}).catch(()=>{});
+  const url=new URL('./',BASE_URL);url.hash=route;
+  const windows=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  const existing=windows.find(c=>new URL(c.url).origin===url.origin&&new URL(c.url).pathname.startsWith(BASE_URL.pathname));
+  if(existing){await existing.focus();existing.postMessage({type:'ACADELY_PUSH_RECEIVED'});}else await self.clients.openWindow(url.href);
+ })());
 });
