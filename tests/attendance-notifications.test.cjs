@@ -75,3 +75,11 @@ test('rapid repeat taps cannot duplicate enrollment or test jobs',async()=>{
 test('a cached enabled-device flag does not skip confirming its server subscription before a test',async()=>{
  const h=pushUiHarness();h.run('academicDeviceEnabled=true');await h.run('testAcademicPush()');assert.deepEqual(h.calls.filter(x=>['subscribe','test'].includes(x.action)).map(x=>x.action),['subscribe','test']);
 });
+
+test('async server readiness unlocks the existing push controls without losing form edits',async()=>{
+ const h=pushUiHarness(),controls={'academic-enable-push':{disabled:true},'academic-test-push':{disabled:true},'academic-disable-push':{disabled:true}},status={textContent:''};
+ h.c.PushManager=function(){};h.c.isIosDevice=()=>false;h.c.isStandaloneApp=()=>false;h.c.document.querySelector=selector=>selector==='#push-server-status'?status:controls[selector.match(/data-action="([^"]+)"/)?.[1]]||null;
+ h.c.window.AcadelyCloudService.academicRequest=async()=>({configured:true,publicKey:'AQAB'});h.c.window.AcadelyI18n.apply=()=>{};h.run("academicBackend={configured:false};academicBackendChecked=0");
+ await h.run('checkAcademicBackend(true)');assert.equal(status.textContent,'Push server connected');assert.equal(controls['academic-enable-push'].disabled,false);assert.equal(controls['academic-test-push'].disabled,false);assert.equal(controls['academic-disable-push'].disabled,true);
+ h.run('academicPushBusy=true;updateAcademicPushControls()');assert.equal(controls['academic-test-push'].disabled,true);
+});
