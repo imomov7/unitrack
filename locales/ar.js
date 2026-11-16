@@ -1,5 +1,10 @@
 // Arabic UI catalogue. Official names and user content are preserved.
 window.ACADELY_AR = {
+  "All-day & date-only events": "أحداث اليوم الكامل والتواريخ فقط",
+  "Calendar timezone": "المنطقة الزمنية للتقويم",
+  "Current time": "الوقت الحالي",
+  "Calendar time grid": "الجدول الزمني للتقويم",
+
   "Enable academic reminders first. The switch saves automatically.": "فعّل التذكيرات الأكاديمية أولًا. يُحفظ المفتاح تلقائيًا.",
   "Connecting this device to notifications…": "جارٍ توصيل هذا الجهاز بالإشعارات…",
   "The app worker is not ready. Reload Acadely and try again.": "خدمة التطبيق غير جاهزة. أعد تحميل Acadely وحاول مجددًا.",
