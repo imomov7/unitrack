@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements', 'attendance', 'notificationHistory'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.6.1';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo' });
 // Set a dedicated public business address here when one is available.
 const ACADELY_CONTACT_EMAIL = '';
