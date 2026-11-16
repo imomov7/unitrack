@@ -146,3 +146,6 @@ Attendance adds per-course targets, transparent percentages, pending confirmatio
 
 ### 1.6.1 — device notification setup repair
 The master reminder switch now saves immediately. Enable Push also validates and saves the currently checked preference form before requesting browser permission in the original tap. Send Test remains actionable before enrollment and confirms the server subscription before every real server test, including cached devices. Progress/error messages, bounded worker/network waits, one-minute delivery guidance and duplicate-tap protection replace silent/disabled dead ends. No academic records, server credentials, grade calculations or LocalStorage keys change. Automated enrollment tests use mocked browser permission and subscriptions; real phone delivery still requires device permission and confirmation. Static cache advances to version 19.
+
+### 1.6.2 — asynchronous push readiness controls
+When the authenticated server check completes, Enable Push and Send Test now update immediately without replacing the preference form or waiting for another page render. Added regression coverage for the loading-to-ready transition. Static cache: version 20.

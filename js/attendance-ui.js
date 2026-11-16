@@ -87,13 +87,19 @@ function notificationCenter(){
 function noticeCategory(value){return ({attendance:'Attendance',class:'Class',assignment:'Assignment',exam:'Exam',quiz:'Quiz',general:'Academic reminder',low:'Attendance warning',test:'Test notification'})[value]||'Academic reminder';}
 function updateNotificationBell(){const n=(data.notificationHistory||[]).filter(r=>!r.read&&!r.removed).length,el=document.querySelector('#notification-count');if(el){el.textContent=String(n);el.hidden=!n;}document.querySelector('#notification-bell')?.setAttribute('aria-label','Notification center');}
 async function academicRemote(action,details={}){if(!accountUser||!window.ACADELY_PUSH_CONFIG?.apiEnabled||!window.AcadelyCloudService?.academicRequest)throw new Error('Server setup required');return window.AcadelyCloudService.academicRequest({action,...details});}
+function updateAcademicPushControls(){
+ const supported=typeof PushManager!=='undefined'&&'serviceWorker' in navigator&&typeof Notification!=='undefined'&&(!isIosDevice()||isStandaloneApp());
+ const unavailable=!supported||!accountUser||!academicBackend.configured||academicPushBusy;
+ for(const action of ['academic-enable-push','academic-test-push']){const button=document.querySelector(`[data-action="${action}"]`);if(button)button.disabled=unavailable;}
+ const pause=document.querySelector('[data-action="academic-disable-push"]');if(pause)pause.disabled=!academicDeviceEnabled||academicPushBusy;
+}
 async function checkAcademicBackend(force=false){
  if(!accountUser||!window.ACADELY_PUSH_CONFIG?.apiEnabled){academicBackend={configured:false,reason:'Server setup required'};return;}
  if(academicBackendBusy||(!force&&Date.now()-academicBackendChecked<(academicBackend.configured?300000:60000))||(!force&&academicBackendChecked&&currentPage!=='settings'&&!academicBackend.configured))return;
  academicBackendBusy=true;academicBackendChecked=Date.now();const owner=accountUser.id;
  try{const result=await academicRemote('status');if(accountUser?.id!==owner)return;academicBackend={...result,reason:result.configured?'Push server connected':result.reason||'Server setup required'};}
  catch{if(accountUser?.id===owner)academicBackend={configured:false,reason:'Push server unavailable. In-app reminders remain available.'};}
- finally{academicBackendBusy=false;const status=document.querySelector('#push-server-status');if(status){status.textContent=academicBackend.reason;window.AcadelyI18n?.apply(status);}}
+ finally{academicBackendBusy=false;const status=document.querySelector('#push-server-status');if(status){status.textContent=academicBackend.reason;window.AcadelyI18n?.apply(status);}updateAcademicPushControls();}
 }
 async function saveWorkerContext(userId){try{await window.AcadelyPushStore?.set('context',{userId,at:Date.now()});}catch{/* Unsupported device storage disables one-tap handoff, not the app. */}}
 async function enableAcademicPush(){
@@ -156,7 +162,7 @@ async function syncAcademicNotices(){
   for(const job of AcadelyAttendance.reminderJobs(data,p,now)){if(job.dueAt>now||job.dueAt<now-10*60000||data.notificationHistory.some(r=>r.id===job.id))continue;data.notificationHistory.push({...job,createdAt:new Date(job.dueAt).toISOString(),read:false,removed:false});changed=true;}
   if(accountUser&&academicBackend.configured){for(const row of data.notificationHistory.filter(r=>r.syncPending).slice(0,8)){try{await academicRemote(row.syncPending,{id:row.id});if(accountUser?.id!==owner)return;delete row.syncPending;changed=true;}catch{break;}}}
   if(accountUser&&academicBackend.configured&&(academicBackend.historyRequested||!academicBackend.historyChecked)){academicBackend.historyRequested=false;academicBackend.historyChecked=Date.now();try{const result=await academicRemote('history');if(accountUser?.id!==owner)return;for(const row of result.notifications||[]){const local=data.notificationHistory.find(r=>r.id===row.id);if(!local){data.notificationHistory.push(row);changed=true;}else{if(row.read&&!local.read){local.read=true;changed=true;}if(row.removed&&!local.removed){local.removed=true;changed=true;}}}}catch{/* Existing local notification history remains usable offline. */}}
-  if(changed){const center=document.querySelector('#notification-center');save();if(center){closeDialog(center);notificationCenter();}}else updateNotificationBell();await processAcademicIntent();
+  if(changed){const center=document.querySelector('#notification-center');save();if(center){closeDialog(center);notificationCenter();}}else updateNotificationBell();updateAcademicPushControls();await processAcademicIntent();
  }finally{academicTickBusy=false;}
 }
 function openAcademicNotice(row,confirmAttendance=true){
