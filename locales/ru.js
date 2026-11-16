@@ -1,5 +1,10 @@
 // Russian UI catalogue. Official names and user content are preserved.
 window.ACADELY_RU = {
+  "All-day & date-only events": "События на весь день и без времени",
+  "Calendar timezone": "Часовой пояс календаря",
+  "Current time": "Текущее время",
+  "Calendar time grid": "Временная сетка календаря",
+
   "Enable academic reminders first. The switch saves automatically.": "Сначала включите учебные напоминания. Переключатель сохраняется автоматически.",
   "Connecting this device to notifications…": "Подключение уведомлений на устройстве…",
   "The app worker is not ready. Reload Acadely and try again.": "Служба приложения не готова. Перезагрузите Acadely и повторите попытку.",

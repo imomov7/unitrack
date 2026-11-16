@@ -2,7 +2,7 @@ importScripts(new URL('./js/push-store.js', self.registration.scope).href);
 /* ACADELY static shell cache. User data remains in browser LocalStorage and is
    never written to Cache Storage. Keep this worker and manifest under /unitrack/.
 */
-const CACHE_NAME = 'acadely-shell-v20';
+const CACHE_NAME = 'acadely-shell-v21';
 const BASE_URL = new URL('./', self.registration.scope);
 const SHELL_FILES = [
   './index.html',
@@ -21,6 +21,7 @@ const SHELL_FILES = [
   './js/startup.js',
   './assets/data/majors.js',
   './js/app.js',
+  './js/calendar-time.js',
   './js/attendance-core.js',
   './js/attendance-ui.js',
   './js/push-store.js',

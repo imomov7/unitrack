@@ -149,3 +149,6 @@ The master reminder switch now saves immediately. Enable Push also validates and
 
 ### 1.6.2 — asynchronous push readiness controls
 When the authenticated server check completes, Enable Push and Send Test now update immediately without replacing the preference form or waiting for another page render. Added regression coverage for the loading-to-ready transition. Static cache: version 20.
+
+### 1.7.0 — live calendar time indicator
+Day and week views now include a scrollable 24-hour grid using the existing event cards, recurrence data and detail actions. A thin current-time line and circular marker appear only in today’s column, update each minute and recover when the app resumes. Today opens near the current time; ordinary rerenders and language changes preserve the user’s scroll. Month view and the selected-date agenda remain available. Date-only entries remain separate, overlapping blocks use separate lanes and overnight classes carry into the next day. The displayed timezone uses an existing calendar override, otherwise the reminder timezone, profile timezone or device timezone. No student records or calculations change. English, Arabic RTL and Russian, light/dark modes, desktop and 375/390/430 px layouts were checked. Static cache: version 21.

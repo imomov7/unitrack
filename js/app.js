@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements', 'attendance', 'notificationHistory'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.6.2';
+const APP_VERSION = '1.7.0';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo' });
 // Set a dedicated public business address here when one is available.
 const ACADELY_CONTACT_EMAIL = '';
@@ -18,6 +18,9 @@ let toastTimer;
 let assignmentFilter = 'all';
 let assignmentSearch = '';
 let calendarMode = 'month';
+let calendarHasOpened = false;
+function calendarZone(){return window.AcadelyCalendarTime.timezone(data.settings,data.studentProfile);}
+function calendarToday(){return window.AcadelyCalendarTime.clock(Date.now(),calendarZone()).date;}
 let calendarCursor = new Date();
 let calendarSelected = today();
 let storageWarningShown = false;
@@ -1048,18 +1051,17 @@ function monthGrid() {
   const cells = Array.from({ length: 42 }, (_, index) => {
     const day = new Date(start); day.setDate(start.getDate() + index);
     const iso = isoDate(day), items = events.filter((item) => item.date === iso), outside = day.getMonth() !== calendarCursor.getMonth();
-    return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === today() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.map((item) => calendarEventButton(item, true)).join('')}</div></div>`;
+    return `<div class="calendar-day${outside ? ' is-outside' : ''}${iso === selected ? ' is-selected' : ''}${iso === calendarToday() ? ' is-today' : ''}"><button type="button" class="calendar-date" data-action="calendar-select" data-date="${iso}" aria-label="Select ${day.toLocaleDateString(window.AcadelyI18n?.locale||'en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}">${day.getDate()}</button><div class="calendar-day-events">${items.map((item) => calendarEventButton(item, true)).join('')}</div></div>`;
   }).join('');
   return `<p class="helper-text calendar-scroll-hint">Swipe or scroll sideways to see all days. Use Day for a full-day list.</p><div class="calendar-scroll" role="region" aria-label="Monthly calendar" tabindex="0"><div class="calendar-month-grid">${headings}${cells}</div></div>`;
 }
-function weekGrid(start) {
-  const end = new Date(start); end.setDate(end.getDate() + 6);
-  const events = calendarEvents(start, end);
-  return `<div class="calendar-week-grid">${DAYS.map((day, index) => {
-    const date = new Date(start); date.setDate(date.getDate() + index); const iso = isoDate(date), items = events.filter((item) => item.date === iso);
-    return `<section class="calendar-week-day${iso === today() ? ' is-today' : ''}"><button class="calendar-week-date" type="button" data-action="calendar-select" data-date="${iso}"><span>${day.slice(0, 3)}</span><strong>${date.getDate()}</strong></button><div class="calendar-week-events">${items.length ? items.map((item) => calendarEventButton(item)).join('') : '<span class="calendar-no-events">No events</span>'}</div></section>`;
-  }).join('')}</div>`;
+function calendarTimeGrid(from,to){
+ const dates=[];for(let date=new Date(from);isoDate(date)<=isoDate(to);date.setDate(date.getDate()+1))dates.push(isoDate(date));
+ const previous=new Date(from);previous.setDate(previous.getDate()-1);
+ return window.AcadelyCalendarTime.grid({dates,events:calendarEvents(previous,to),zone:calendarZone(),renderEvent:calendarEventButton,escape:esc,locale:window.AcadelyI18n?.locale||'en'});
 }
+function weekGrid(start){const end=new Date(start);end.setDate(end.getDate()+6);return calendarTimeGrid(start,end);}
+
 function calendarRange() {
   if (calendarMode === 'month') return { from: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth(), 1, 12), to: new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + 1, 0, 12) };
   if (calendarMode === 'week') { const from = mondayOf(calendarCursor), to = new Date(from); to.setDate(to.getDate() + 6); return { from, to }; }
@@ -1076,9 +1078,10 @@ function calendarAgenda(date) {
   return events.length ? events.map(item => calendarEventButton(item)).join('') : `<div class="empty-state compact"><button type="button" class="empty-icon empty-add" data-action="calendar-add" aria-label="Add calendar event">＋</button><strong>Nothing scheduled</strong><span>Add a personal event or use assignments, exams, and the timetable to fill your calendar.</span></div>`;
 }
 function calendar() {
+  if(!calendarHasOpened){calendarHasOpened=true;if(calendarSelected===today()&&isoDate(calendarCursor)===today()){calendarSelected=calendarToday();calendarCursor=dateFromIso(calendarSelected);}}
   const { from, to } = calendarRange();
   const selected = calendarSelected && validDate(calendarSelected) ? calendarSelected : today();
-  const view = calendarMode === 'month' ? monthGrid() : calendarMode === 'week' ? weekGrid(mondayOf(calendarCursor)) : `<div class="calendar-day-view">${calendarEvents(from, to).length ? calendarEvents(from, to).map((item) => `<div class="calendar-day-event">${calendarEventButton(item)}</div>`).join('') : `<div class="empty-state compact"><button type="button" class="empty-icon empty-add" data-action="calendar-add" aria-label="Add calendar event">＋</button><strong>A clear day</strong><span>There are no events scheduled for this date.</span></div>`}</div>`;
+  const view = calendarMode === 'month' ? monthGrid() : calendarMode === 'week' ? weekGrid(mondayOf(calendarCursor)) : calendarTimeGrid(from,to);
   const toolbar = `<div class="calendar-toolbar"><div class="calendar-date-controls"><button type="button" class="calendar-arrow" data-action="calendar-shift" data-direction="-1" aria-label="Previous ${calendarMode}">‹</button><strong>${esc(calendarTitle(from, to))}</strong><button type="button" class="calendar-arrow" data-action="calendar-shift" data-direction="1" aria-label="Next ${calendarMode}">›</button><button type="button" class="button button-secondary calendar-today" data-action="calendar-today">Today</button></div><div class="calendar-toolbar-actions"><div class="calendar-view-switch" role="group" aria-label="Calendar view">${['month', 'week', 'day'].map((mode) => `<button type="button" data-action="calendar-view" data-view="${mode}" aria-pressed="${calendarMode === mode}" class="${calendarMode === mode ? 'active' : ''}">${mode[0].toUpperCase()}${mode.slice(1)}</button>`).join('')}</div>${button('＋ Add event', 'calendar-add', 'primary')}</div></div>`;
   const legend = `<div class="calendar-legend">${[['assignment','Assignments'],['exam','Exams'],['class','Classes'],['personal','Personal events'],['study','Study'],['deadline','Academic dates']].map(([kind,label]) => `<span><i class="event-${kind}"></i>${label}</span>`).join('')}</div>`;
   return `${pageHeader('Academic calendar', 'See coursework, exams, classes, and personal events together.')}${semesterCalendarControls()}${card('Your calendar', 'Select an event to see details. Existing academic records appear here automatically.', `${toolbar}${legend}${view}`)}${card(`Events · ${dateLabel(selected)}`, 'Everything scheduled on the selected date.', `<div class="calendar-agenda">${calendarAgenda(selected)}</div>`)}`;
@@ -1153,6 +1156,7 @@ function bindPage() {
   document.querySelector('#student-profile-form')?.addEventListener('submit', saveStudentProfile);
   bindSimplifiedPages();
   bindAttendanceForms();
+  window.AcadelyCalendarTime?.mount(content);
 }
 
 function resizeProfilePicture(file) {
@@ -1560,7 +1564,7 @@ document.addEventListener('click', (event) => {
   const { action, kind, id } = control.dataset;
   if (action === 'calendar-select') { calendarSelected = control.dataset.date; calendarCursor = dateFromIso(calendarSelected); render(); }
   else if (action === 'calendar-view') { calendarMode = ['month','week','day'].includes(control.dataset.view) ? control.dataset.view : 'month'; render(); }
-  else if (action === 'calendar-today') { calendarSelected = today(); calendarCursor = dateFromIso(calendarSelected); render(); }
+  else if (action === 'calendar-today') { window.AcadelyCalendarTime.focusNow(); calendarSelected = calendarToday(); calendarCursor = dateFromIso(calendarSelected); render(); }
   else if (action === 'calendar-shift') {
     const direction = Number(control.dataset.direction) < 0 ? -1 : 1;
     if (calendarMode === 'month') calendarCursor = new Date(calendarCursor.getFullYear(), calendarCursor.getMonth() + direction, 1, 12);

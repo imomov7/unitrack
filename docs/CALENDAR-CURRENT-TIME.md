@@ -1,0 +1,13 @@
+# Calendar current time — 1.7.0
+
+The existing calendar had month cells and day/week event lists, with no time axis. The addition supplies a 24-hour grid for day/week while retaining the month implementation, selected-day agenda, source collections, recurrence rules, colors and event detail actions. Nothing is written to academic records, account settings or LocalStorage by the clock.
+
+The line is two pixels high, has an eight-pixel circular marker at its logical start, sits above events, and ignores pointer input. Its percentage position is minutes since midnight divided by 1440, in the displayed IANA timezone. It appears only in today's column. It is absent in month view and on dates outside today. Timezone precedence: existing `settings.calendarTimezone`, reminder timezone, profile timezone, device timezone, then UTC. The displayed timezone is explicit; no setting is invented or silently saved.
+
+One timer aligns updates to minute boundaries; visibility changes refresh immediately. Mounting a different page clears the timer. User scroll positions are captured before detached DOM nodes can lose them. Today's first opening and the Today button scroll near the current time; ordinary rerenders do not pull the user away. Week scrolling is contained on small screens and today’s column is brought into view. Logical CSS properties support RTL.
+
+Timed records reuse their saved start/end. Overlapping events get separate lanes. Overnight events show a continuation on the next date. A timed item with no end uses a 45-minute visual slot without inventing or storing an end time. Date-only items remain above the time grid. Full details and the selected-date agenda retain readable event metadata, including for short blocks.
+
+Validation: 104 automated tests pass, including timezone/DST/date boundaries, before/during/after class, overnight/overlap layout, minute updates, date rollover, hidden dates, scroll preservation and timer cleanup. Existing calendar-card and full application DOM integration checks pass. Browser checks used disposable local data at 1280×900, 375×812, 390×844 and 430×932: day/week/month navigation, another date/week hiding the line, event-detail dialogs, English/Arabic RTL/Russian, light/dark modes and contained scrolling. Actual minute advancement was observed without refreshing. Physical phones were not available; responsive browser viewports were used.
+
+Files: `js/calendar-time.js` (new renderer/clock), `js/app.js` (integration), `css/style.css`, `index.html`, `service-worker.js`, `locales/ar.js`, `locales/ru.js`, `tests/calendar-time.test.cjs` (new), `README.md`, and this guide.
