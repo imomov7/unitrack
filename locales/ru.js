@@ -1,5 +1,13 @@
 // Russian UI catalogue. Official names and user content are preserved.
 window.ACADELY_RU = {
+  "Enable academic reminders first. The switch saves automatically.": "Сначала включите учебные напоминания. Переключатель сохраняется автоматически.",
+  "Connecting this device to notifications…": "Подключение уведомлений на устройстве…",
+  "The app worker is not ready. Reload Acadely and try again.": "Служба приложения не готова. Перезагрузите Acadely и повторите попытку.",
+  "Device notification setup timed out. Please try again.": "Время настройки уведомлений истекло. Повторите попытку.",
+  "The notification server did not respond. Please try again.": "Сервер уведомлений не ответил. Повторите попытку.",
+  "Queuing test notification…": "Постановка тестового уведомления в очередь…",
+  "Test queued. Allow up to one minute for delivery. Check device notification permissions if it does not arrive.": "Тест поставлен в очередь. Доставка может занять до минуты. Если уведомление не пришло, проверьте разрешения на устройстве.",
+
   "Some timetable classes need a course link before attendance can be tracked.": "Некоторые занятия нужно связать с курсом, прежде чем отслеживать посещаемость.",
   "Open class schedule": "Открыть расписание занятий",
 

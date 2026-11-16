@@ -2,7 +2,7 @@ function attendanceDialog(...args){const dialog=academicDialog(...args);dialog.c
 /* Attendance and notification UI reuse the existing private workspace and save flow. */
 let attendanceCourseFilter='',attendanceDateFilter='',attendanceStatusFilter='';
 let academicBackend={configured:false,reason:'Server setup required'},academicBackendChecked=0,academicBackendBusy=false,academicOwner=null,academicTickBusy=false;
-let academicDeviceEnabled=false,academicIntentBusy=false;
+let academicDeviceEnabled=false,academicIntentBusy=false,academicPushBusy=false;
 function academicZone(){try{return Intl.DateTimeFormat().resolvedOptions().timeZone||'UTC';}catch{return 'UTC';}}
 function academicPrefs(){return AcadelyAttendance.preferences(data.settings.notificationPrefs,AcadelyAttendance.validZone(data.studentProfile.timezone)?data.studentProfile.timezone:data.settings.notificationPrefs?.enabled?'UTC':academicZone());}
 function attendanceScope(){
@@ -48,19 +48,36 @@ function attendanceNotificationSettings(){
  const p=academicPrefs(),permission=typeof Notification==='undefined'?'unsupported':Notification.permission;
  const fields=[['classes','Class reminders'],['attendance','Attendance confirmation reminders'],['assignments','Assignment deadline reminders'],['exams','Exam reminders'],['quizzes','Quiz reminders'],['lowAttendance','Low attendance warnings'],['general','General academic reminders']];
  const supported=typeof PushManager!=='undefined'&&'serviceWorker' in navigator&&typeof Notification!=='undefined'&&(!isIosDevice()||isStandaloneApp());
- return card('Notifications & attendance','Choose your reminders. Browser permission is requested only when you tap Enable push.',`<p id="push-server-status" class="notice-hint">${academicBackend.configured?'Push server connected':academicBackend.reason}</p><p class="helper-text">In-app reminders work while Acadely is open. Closed-app push requires the configured server, an installed app where required, and browser permission.</p><form id="notification-settings-form" class="settings-form"><label class="remember-choice"><input type="checkbox" name="enabled" ${p.enabled?'checked':''}>Enable academic reminders</label><div class="notification-options">${fields.map(([key,label])=>`<label class="remember-choice"><input type="checkbox" name="${key}" ${p[key]?'checked':''}>${label}</label>`).join('')}</div><div class="two-fields"><label>Reminder timezone<input name="timezone" value="${esc(p.timezone)}" required maxlength="100" placeholder="Asia/Dubai"></label><label>Minutes before class<input name="classLead" type="number" min="0" max="1440" value="${p.classLead}" required></label></div><label>Attendance follow-up (minutes, 0 disables)<input name="followup" type="number" min="0" max="240" value="${p.followup}" required></label><label>Assignment reminders (minutes before deadline)<input name="assignmentMinutes" value="${p.assignmentMinutes.join(', ')}" placeholder="1440, 60, 0"></label><p class="helper-text">1440 = 24 hours, 60 = 1 hour, 0 = at the deadline. Date-only assignments use 23:59 in your reminder timezone. Exams without a start time receive only a day-before reminder at 09:00; their start time is not guessed.</p><label class="remember-choice"><input type="checkbox" name="quiet" ${p.quiet?'checked':''}>Quiet hours</label><div class="two-fields"><label>Quiet hours start<input name="quietStart" type="time" value="${p.quietStart}" required></label><label>Quiet hours end<input name="quietEnd" type="time" value="${p.quietEnd}" required></label></div><p class="helper-text">Quiet hours mute push delivery. Reminders remain in your notification center. Low-attendance warnings are limited to one per course each day.</p><button class="button button-primary" type="submit">Save notification preferences</button></form><div class="notification-permission"><p><span>Notification permission</span>: <strong>${esc(permission)}</strong></p>${permission==='denied'?'<p class="helper-text">Notifications are blocked. Open this website’s permissions in your browser or device Settings and allow notifications.</p>':''}${!supported?'<p class="helper-text">Push is not supported in this browser. On iPhone or iPad, open Acadely in Safari, share it to your Home Screen, then open the installed app on iOS 16.4 or later.</p>':''}<div class="row-actions"><button class="button button-secondary" type="button" data-action="academic-enable-push" ${!supported||!accountUser||!academicBackend.configured?'disabled':''}>Enable push on this device</button><button class="button button-secondary" type="button" data-action="academic-disable-push" ${!academicDeviceEnabled?'disabled':''}>Pause push on this device</button><button class="button button-secondary" type="button" data-action="academic-test-push" ${!academicDeviceEnabled||!academicBackend.configured?'disabled':''}>Send test notification</button><button class="button button-secondary" type="button" data-action="academic-check-push">Check server setup</button></div>${!accountUser?'<p class="helper-text">Sign in to enable closed-app push notifications.</p>':''}</div>`);
+ return card('Notifications & attendance','Choose your reminders. Browser permission is requested only when you tap Enable push.',`<p id="push-server-status" class="notice-hint">${academicBackend.configured?'Push server connected':academicBackend.reason}</p><p class="helper-text">In-app reminders work while Acadely is open. Closed-app push requires the configured server, an installed app where required, and browser permission.</p><form id="notification-settings-form" class="settings-form"><label class="remember-choice"><input type="checkbox" name="enabled" ${p.enabled?'checked':''}>Enable academic reminders</label><div class="notification-options">${fields.map(([key,label])=>`<label class="remember-choice"><input type="checkbox" name="${key}" ${p[key]?'checked':''}>${label}</label>`).join('')}</div><div class="two-fields"><label>Reminder timezone<input name="timezone" value="${esc(p.timezone)}" required maxlength="100" placeholder="Asia/Dubai"></label><label>Minutes before class<input name="classLead" type="number" min="0" max="1440" value="${p.classLead}" required></label></div><label>Attendance follow-up (minutes, 0 disables)<input name="followup" type="number" min="0" max="240" value="${p.followup}" required></label><label>Assignment reminders (minutes before deadline)<input name="assignmentMinutes" value="${p.assignmentMinutes.join(', ')}" placeholder="1440, 60, 0"></label><p class="helper-text">1440 = 24 hours, 60 = 1 hour, 0 = at the deadline. Date-only assignments use 23:59 in your reminder timezone. Exams without a start time receive only a day-before reminder at 09:00; their start time is not guessed.</p><label class="remember-choice"><input type="checkbox" name="quiet" ${p.quiet?'checked':''}>Quiet hours</label><div class="two-fields"><label>Quiet hours start<input name="quietStart" type="time" value="${p.quietStart}" required></label><label>Quiet hours end<input name="quietEnd" type="time" value="${p.quietEnd}" required></label></div><p class="helper-text">Quiet hours mute push delivery. Reminders remain in your notification center. Low-attendance warnings are limited to one per course each day.</p><button class="button button-primary" type="submit">Save notification preferences</button></form><div class="notification-permission"><p><span>Notification permission</span>: <strong>${esc(permission)}</strong></p>${permission==='denied'?'<p class="helper-text">Notifications are blocked. Open this website’s permissions in your browser or device Settings and allow notifications.</p>':''}${!supported?'<p class="helper-text">Push is not supported in this browser. On iPhone or iPad, open Acadely in Safari, share it to your Home Screen, then open the installed app on iOS 16.4 or later.</p>':''}<div class="row-actions"><button class="button button-secondary" type="button" data-action="academic-enable-push" ${!supported||!accountUser||!academicBackend.configured||academicPushBusy?'disabled':''}>Enable push on this device</button><button class="button button-secondary" type="button" data-action="academic-disable-push" ${!academicDeviceEnabled?'disabled':''}>Pause push on this device</button><button class="button button-secondary" type="button" data-action="academic-test-push" ${!supported||!accountUser||!academicBackend.configured||academicPushBusy?'disabled':''}>Send test notification</button><button class="button button-secondary" type="button" data-action="academic-check-push">Check server setup</button></div>${!accountUser?'<p class="helper-text">Sign in to enable closed-app push notifications.</p>':''}</div>`);
 }
 function bindAttendanceForms(){
  for(const [id,set]of [['attendance-course',v=>attendanceCourseFilter=v],['attendance-date',v=>attendanceDateFilter=v],['attendance-status',v=>attendanceStatusFilter=v]])document.getElementById(id)?.addEventListener('change',e=>{set(e.target.value);render();});
- document.querySelector('#notification-settings-form')?.addEventListener('submit',e=>{
-  e.preventDefault();const f=new FormData(e.currentTarget),timezone=String(f.get('timezone')).trim(),raw=String(f.get('assignmentMinutes')).trim();
-  const values=raw?raw.split(',').map(v=>Number(v.trim())):[];
-  if(!AcadelyAttendance.validZone(timezone)||values.some(n=>!Number.isInteger(n)||n<0||n>10080)||!Number.isFinite(Number(f.get('classLead')))||Number(f.get('classLead'))<0||Number(f.get('classLead'))>1440||!Number.isFinite(Number(f.get('followup')))||Number(f.get('followup'))<0||Number(f.get('followup'))>240)return msg('Enter a valid timezone and reminder intervals from 0 to 10080 minutes.');
-  const rawPrefs={timezone,assignmentMinutes:values,language:window.AcadelyI18n?.language||'en',classLead:Number(f.get('classLead')),followup:Number(f.get('followup')),quietStart:String(f.get('quietStart')),quietEnd:String(f.get('quietEnd'))};
-  for(const name of ['enabled','classes','attendance','assignments','exams','quizzes','lowAttendance','general','quiet'])rawPrefs[name]=f.get(name)==='on';
-  data.settings.notificationPrefs=AcadelyAttendance.preferences(rawPrefs,academicZone());save();msg('Notification preferences saved.');
- });
+ const form=document.querySelector('#notification-settings-form');
+ form?.addEventListener('submit',e=>{e.preventDefault();if(saveAcademicPreferences(form))msg('Notification preferences saved.');});
+ // A checked master switch must immediately match the saved setting used by push.
+ form?.elements.namedItem('enabled')?.addEventListener('change',()=>{if(saveAcademicPreferences(form))msg('Notification preferences saved.');});
 }
+function saveAcademicPreferences(form){
+ if(!form||!form.reportValidity())return false;
+ const f=new FormData(form),timezone=String(f.get('timezone')).trim(),raw=String(f.get('assignmentMinutes')).trim();
+ const values=raw?raw.split(',').map(v=>Number(v.trim())):[];
+ if(!AcadelyAttendance.validZone(timezone)||values.some(n=>!Number.isInteger(n)||n<0||n>10080)||!Number.isFinite(Number(f.get('classLead')))||Number(f.get('classLead'))<0||Number(f.get('classLead'))>1440||!Number.isFinite(Number(f.get('followup')))||Number(f.get('followup'))<0||Number(f.get('followup'))>240){msg('Enter a valid timezone and reminder intervals from 0 to 10080 minutes.');return false;}
+ const rawPrefs={timezone,assignmentMinutes:values,language:window.AcadelyI18n?.language||'en',classLead:Number(f.get('classLead')),followup:Number(f.get('followup')),quietStart:String(f.get('quietStart')),quietEnd:String(f.get('quietEnd'))};
+ for(const name of ['enabled','classes','attendance','assignments','exams','quizzes','lowAttendance','general','quiet'])rawPrefs[name]=form.elements.namedItem(name)?.checked===true;
+ const prefs=AcadelyAttendance.preferences(rawPrefs,academicZone());
+ if(JSON.stringify(data.settings.notificationPrefs)!==JSON.stringify(prefs)){data.settings.notificationPrefs=prefs;save();}
+ return true;
+}
+function prepareAcademicPush(){
+ const form=document.querySelector('#notification-settings-form');
+ if(form&&!saveAcademicPreferences(form))return false;
+ if(!academicPrefs().enabled){msg('Enable academic reminders first. The switch saves automatically.');return false;}
+ return true;
+}
+function academicPushTimeout(promise,message){
+ let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error(message)),20000);})]).finally(()=>clearTimeout(timer));
+}
+
 function notificationCenter(){
  const existing=document.querySelector('#notification-center');if(existing){closeDialog(existing);return;}
  const rows=(data.notificationHistory||[]).filter(r=>!r.removed).slice().sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,200);
@@ -80,15 +97,41 @@ async function checkAcademicBackend(force=false){
 }
 async function saveWorkerContext(userId){try{await window.AcadelyPushStore?.set('context',{userId,at:Date.now()});}catch{/* Unsupported device storage disables one-tap handoff, not the app. */}}
 async function enableAcademicPush(){
- if(!accountUser||!academicBackend.configured)return msg('Complete server setup before enabling push.');
- const owner=accountUser.id;
- if(!academicPrefs().enabled)return msg('Enable academic reminders and save your preferences first.');
+ if(academicPushBusy)return false;
+ if(!accountUser||!academicBackend.configured){msg('Complete server setup before enabling push.');return false;}
+ if(!prepareAcademicPush())return false;
+ const owner=accountUser.id;academicPushBusy=true;render();
  try{
-  const permission=await Notification.requestPermission();if(accountUser?.id!==owner)return msg('The signed-in account changed. Please try again.');if(permission!=='granted'){render();return msg('Notification permission was not granted.');}
-  const registration=await navigator.serviceWorker.ready;const key=academicBackend.publicKey,bytes=Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
-  let subscription=await registration.pushManager.getSubscription();if(!subscription)subscription=await registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes});
-  if(accountUser?.id!==owner)return;await academicRemote('subscribe',{subscription:subscription.toJSON(),timezone:academicPrefs().timezone});if(accountUser?.id!==owner)return;await window.AcadelyPushStore?.set('paused:'+accountUser.id,false);await saveWorkerContext(accountUser.id);academicDeviceEnabled=true;render();msg('Push enabled on this device. Send a test notification to verify delivery.');
- }catch{msg('Push could not be enabled. Check installation, permission, and server setup.');}
+  // Request permission in the original click, before any network or worker await.
+  const permission=await Notification.requestPermission();if(accountUser?.id!==owner){msg('The signed-in account changed. Please try again.');return false;}if(permission!=='granted'){msg('Notification permission was not granted.');return false;}
+  msg('Connecting this device to notifications…');
+  const registration=await academicPushTimeout(navigator.serviceWorker.ready,'The app worker is not ready. Reload Acadely and try again.');
+  const key=academicBackend.publicKey,bytes=Uint8Array.from(atob(key.replace(/-/g,'+').replace(/_/g,'/')),c=>c.charCodeAt(0));
+  let subscription=await academicPushTimeout(registration.pushManager.getSubscription(),'Device notification setup timed out. Please try again.');
+  if(!subscription)subscription=await academicPushTimeout(registration.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:bytes}),'Device notification setup timed out. Please try again.');
+  if(accountUser?.id!==owner)return false;
+  await academicPushTimeout(academicRemote('subscribe',{subscription:subscription.toJSON(),timezone:academicPrefs().timezone}),'The notification server did not respond. Please try again.');
+  if(accountUser?.id!==owner)return false;
+  await window.AcadelyPushStore?.set('paused:'+owner,false);await saveWorkerContext(owner);academicDeviceEnabled=true;
+  msg('Push enabled on this device. Send a test notification to verify delivery.');return true;
+ }catch(error){msg(error?.message||'Push could not be enabled. Check installation, permission, and server setup.');return false;}
+ finally{academicPushBusy=false;render();}
+}
+async function testAcademicPush(){
+ if(academicPushBusy)return;
+ const owner=accountUser?.id;
+ // Verify the server subscription even when a cached browser subscription exists.
+ if(!await enableAcademicPush())return;
+ if(!owner||accountUser?.id!==owner)return;
+ academicPushBusy=true;render();msg('Queuing test notification…');
+ try{
+  const result=await academicPushTimeout(academicRemote('test'),'The notification server did not respond. Please try again.');
+  if(accountUser?.id!==owner)return;
+  if(result?.queued!==true)throw new Error('The test could not be queued. Check the server setup.');
+  academicBackend.historyRequested=true;
+  msg('Test queued. Allow up to one minute for delivery. Check device notification permissions if it does not arrive.');
+ }catch(error){if(accountUser?.id===owner)msg(error?.message||'The test could not be queued. Check the server setup.');}
+ finally{academicPushBusy=false;render();}
 }
 async function pauseAcademicPush(){try{const reg=await navigator.serviceWorker.ready,sub=await reg.pushManager.getSubscription();if(sub)await academicRemote('pause',{endpoint:sub.endpoint});await window.AcadelyPushStore?.set('paused:'+accountUser.id,true);await saveWorkerContext(null);academicDeviceEnabled=false;render();msg('Push paused on this device.');}catch{msg('Could not pause server delivery. Please retry when connected.');}}
 function pauseAcademicContext(){document.querySelectorAll('#notification-center,.attendance-dialog').forEach(closeDialog);saveWorkerContext(null);academicOwner=null;academicDeviceEnabled=false;attendanceCourseFilter=attendanceDateFilter=attendanceStatusFilter='';}
@@ -136,6 +179,6 @@ async function handleAttendanceAction(action,control){
   if(action==='notice-open'&&row)openAcademicNotice(row);else notificationCenter();
  }
  else if(action==='academic-enable-push')await enableAcademicPush();else if(action==='academic-disable-push')await pauseAcademicPush();else if(action==='academic-check-push'){await checkAcademicBackend(true);render();msg(academicBackend.reason);}
- else if(action==='academic-test-push'){try{await academicRemote('test');msg('Test queued. Confirm it arrives, including with Acadely closed.');}catch{msg('The test could not be queued. Check the server setup.');}}
+ else if(action==='academic-test-push')await testAcademicPush();
 }
 function initializeAcademicNotices(){setInterval(()=>{syncAcademicNotices().catch(()=>{});},60000);document.addEventListener('visibilitychange',()=>{if(!document.hidden){academicBackend.historyRequested=true;syncAcademicNotices().catch(()=>{});}});navigator.serviceWorker?.addEventListener('message',event=>{if(event.data?.type==='ACADELY_PUSH_RECEIVED'){academicBackend.historyChecked=0;academicBackend.historyRequested=true;syncAcademicNotices().catch(()=>{});}});}

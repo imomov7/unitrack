@@ -42,3 +42,36 @@ test('browsers without notification action support still receive a visible tappa
 test('legacy calendar classes resolve unique exact names/codes without changing saved records or guessing ambiguous links',()=>{
  const w=workspace();delete w.classes[0].courseId;w.classes[0].title='test course';const before=JSON.stringify(w);assert.equal(A.resolveCourse(w,w.classes[0]).id,'c');assert.ok(A.occurrences(w,{now,from:'2026-11-16',to:'2026-11-16'}).items.length);assert.equal(JSON.stringify(w),before);w.classes[0].title='TEST 101';assert.equal(A.resolveCourse(w,w.classes[0]).id,'c');w.courses.push({id:'duplicate',code:'OTHER',name:'Test course'});w.classes[0].title='test course';assert.equal(A.resolveCourse(w,w.classes[0]),null);w.classes[0].courseId='deleted-id';assert.equal(A.resolveCourse(w,w.classes[0]),null);
 });
+
+function pushUiHarness({permission='granted',subscribeError=false}={}){
+ const messages=[],calls=[],handlers={},fields={enabled:{checked:true},timezone:{value:'UTC'},assignmentMinutes:{value:'60'},classLead:{value:'10'},followup:{value:'0'},quietStart:{value:'22:00'},quietEnd:{value:'07:00'}};
+ for(const name of ['classes','attendance','assignments','exams','quizzes','lowAttendance','general','quiet'])fields[name]={checked:name==='attendance'};
+ fields.enabled.addEventListener=(event,fn)=>{handlers[event]=fn;};
+ const form={reportValidity:()=>true,elements:{namedItem:name=>fields[name]},addEventListener:(event,fn)=>{handlers['form:'+event]=fn;}};
+ const subscription={toJSON:()=>({endpoint:'https://fcm.googleapis.com/fcm/send/disposable',keys:{p256dh:'test',auth:'test'}})};
+ const c={AcadelyAttendance:A,data:{settings:{notificationPrefs:{enabled:false,timezone:'UTC'}},studentProfile:{}},accountUser:{id:'owner'},document:{getElementById:()=>null,querySelector:selector=>selector==='#notification-settings-form'?form:null},window:{ACADELY_PUSH_CONFIG:{apiEnabled:true},AcadelyI18n:{language:'en'},AcadelyPushStore:{set:async()=>{}},AcadelyCloudService:{academicRequest:async body=>{calls.push(body);if(subscribeError&&body.action==='subscribe')throw new Error('Subscription service unavailable');return body.action==='test'?{queued:true}:{ok:true};}}},navigator:{serviceWorker:{ready:Promise.resolve({pushManager:{getSubscription:async()=>null,subscribe:async()=>subscription}})}},Notification:{requestPermission:()=>{calls.push({action:'permission'});return Promise.resolve(permission);}},Intl,Date,Uint8Array,atob,setTimeout,clearTimeout,FormData:class{constructor(form){this.form=form;}get(name){return fields[name]?.value||null;}},save:()=>calls.push({action:'save'}),render:()=>{},msg:message=>messages.push(message)};
+ vm.createContext(c);vm.runInContext(fs.readFileSync('js/attendance-ui.js','utf8'),c);vm.runInContext("academicBackend={configured:true,publicKey:'AQAB',reason:'Push server connected'}",c);
+ return {c,calls,messages,fields,handlers,run:code=>vm.runInContext(code,c)};
+}
+test('the reminder master switch persists immediately without a separate Save click',()=>{
+ const h=pushUiHarness();h.run('bindAttendanceForms()');h.handlers.change();assert.equal(h.c.data.settings.notificationPrefs.enabled,true);h.fields.enabled.checked=false;h.handlers.change();assert.equal(h.c.data.settings.notificationPrefs.enabled,false);
+});
+test('Enable Push saves the checked form and requests permission in the original click',async()=>{
+ const h=pushUiHarness();const result=h.run('enableAcademicPush()');assert.equal(h.c.data.settings.notificationPrefs.enabled,true);assert.ok(h.calls.some(x=>x.action==='permission'));assert.equal(await result,true);assert.equal(h.run('academicDeviceEnabled'),true);assert.ok(h.calls.some(x=>x.action==='subscribe'&&x.timezone==='UTC'));
+});
+test('Send Test enrolls the current device then queues exactly one real server test',async()=>{
+ const h=pushUiHarness();await h.run('testAcademicPush()');assert.deepEqual(h.calls.filter(x=>['subscribe','test'].includes(x.action)).map(x=>x.action),['subscribe','test']);assert.match(h.messages.at(-1),/up to one minute/);assert.equal(h.run('academicPushBusy'),false);
+});
+test('blocked permission stops test queuing and releases controls for retry',async()=>{
+ const h=pushUiHarness({permission:'denied'});await h.run('testAcademicPush()');assert.ok(!h.calls.some(x=>x.action==='test'||x.action==='subscribe'));assert.match(h.messages.at(-1),/not granted/);assert.equal(h.run('academicPushBusy'),false);
+});
+test('subscription errors are visible and cannot produce a false queued-test message',async()=>{
+ const h=pushUiHarness({subscribeError:true});await h.run('testAcademicPush()');assert.ok(!h.calls.some(x=>x.action==='test'));assert.match(h.messages.at(-1),/Subscription service unavailable/);assert.equal(h.run('academicPushBusy'),false);
+});
+test('rapid repeat taps cannot duplicate enrollment or test jobs',async()=>{
+ const h=pushUiHarness();await Promise.all([h.run('testAcademicPush()'),h.run('testAcademicPush()')]);assert.equal(h.calls.filter(x=>x.action==='test').length,1);assert.equal(h.calls.filter(x=>x.action==='subscribe').length,1);
+});
+
+test('a cached enabled-device flag does not skip confirming its server subscription before a test',async()=>{
+ const h=pushUiHarness();h.run('academicDeviceEnabled=true');await h.run('testAcademicPush()');assert.deepEqual(h.calls.filter(x=>['subscribe','test'].includes(x.action)).map(x=>x.action),['subscribe','test']);
+});
