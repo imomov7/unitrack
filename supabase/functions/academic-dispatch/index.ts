@@ -27,10 +27,13 @@ Deno.serve(async request=>{
     if(!vapid().ready){await finish({status:'retry',next_attempt_at:new Date(current+60000).toISOString(),last_error:'Server keys not configured'});continue;}
     const {data:subscriptions,error:subError}=await db.from('acadely_push_subscriptions').select('id,subscription').eq('user_id',job.user_id).eq('enabled',true);if(subError)throw subError;
     if(!subscriptions?.length){await finish({status:'inapp'});continue;}
+    // One receipt read per job, rather than one read per device.
+    const {data:receipts,error:receiptReadError}=await db.from('acadely_push_deliveries').select('subscription_id').eq('job_id',job.id).eq('user_id',job.user_id);if(receiptReadError)throw receiptReadError;
+    const delivered=new Set((receipts||[]).map(row=>row.subscription_id));
     let needsRetry=false;
     for(let offset=0;offset<subscriptions.length;offset+=5){
      await Promise.all(subscriptions.slice(offset,offset+5).map(async sub=>{
-     const {data:receipt,error:receiptReadError}=await db.from('acadely_push_deliveries').select('job_id').eq('job_id',job.id).eq('subscription_id',sub.id).maybeSingle();if(receiptReadError)throw receiptReadError;if(receipt)return;
+     if(delivered.has(sub.id))return;
      try{await sendPush(sub.subscription,payload);const {error:receiptError}=await db.from('acadely_push_deliveries').upsert({job_id:job.id,subscription_id:sub.id,user_id:job.user_id},{onConflict:'job_id,subscription_id'});if(receiptError)throw receiptError;sent++;}
      catch(error){const status=Number((error as any)?.statusCode);if(status===404||status===410){await db.from('acadely_push_subscriptions').delete().eq('id',sub.id).eq('user_id',job.user_id);}else needsRetry=true;}
      }));
