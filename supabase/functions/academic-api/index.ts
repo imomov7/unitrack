@@ -17,7 +17,8 @@ Deno.serve(async request=>{
   if(body.action==='subscribe'){
    if(!validSubscription(body.subscription)||!Engine.validZone(body.timezone))return reply({error:'Invalid push subscription or timezone'},400);
    const s=body.subscription;
-   const {data:existing}=await db.from('acadely_push_subscriptions').select('id').eq('user_id',userId).eq('endpoint',s.endpoint).maybeSingle();
+   const {data:existing}=await db.from('acadely_push_subscriptions').select('id,subscription,timezone,enabled').eq('user_id',userId).eq('endpoint',s.endpoint).maybeSingle();
+   if(existing?.enabled===true&&existing.timezone===body.timezone&&existing.subscription?.endpoint===s.endpoint&&existing.subscription?.keys?.p256dh===s.keys.p256dh&&existing.subscription?.keys?.auth===s.keys.auth)return reply({ok:true});
    if(!existing){const {count}=await db.from('acadely_push_subscriptions').select('id',{count:'exact',head:true}).eq('user_id',userId);if((count||0)>=10)return reply({error:'This account already has ten push devices. Pause or remove an old device first.'},429);}
    const {error}=await db.from('acadely_push_subscriptions').upsert({user_id:userId,endpoint:s.endpoint,subscription:{endpoint:s.endpoint,keys:{p256dh:s.keys.p256dh,auth:s.keys.auth}},timezone:body.timezone,enabled:true,updated_at:new Date().toISOString()},{onConflict:'user_id,endpoint'});if(error)throw error;return reply({ok:true});
   }

@@ -7,6 +7,16 @@
   let client = null;
   let authSubscription = null;
   let rememberSession = true;
+  let activeUserId=null, initialization=null, authListener=null;
+  const reads=new Map(), profileCache=new Map(), profileVersions=new Map(), channels=new Map();
+  function readOnce(key,read){
+    if(reads.has(key))return reads.get(key);
+    const pending=Promise.resolve().then(read).finally(()=>{if(reads.get(key)===pending)reads.delete(key);});
+    reads.set(key,pending);return pending;
+  }
+  function clearPrivateCache(){reads.clear();profileCache.clear();profileVersions.clear();}
+  function invalidateProfile(id){profileCache.delete(id);profileVersions.set(id,(profileVersions.get(id)||0)+1);}
+
 
   try { rememberSession = localStorage.getItem('acadely-auth-persistence') !== 'session'; } catch { /* Optional preference. */ }
 
@@ -31,7 +41,7 @@
     if (window.supabase?.createClient) return Promise.resolve(window.supabase);
     return new Promise((resolve, reject) => {
       const script = document.createElement('script');
-      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2';
+      script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0';
       script.async = true;
       script.onload = () => window.supabase?.createClient ? resolve(window.supabase) : reject(new Error('Acadely could not start the account service. Reload the page and try again.'));
       script.onerror = () => reject(new Error('The account library could not load. Check your connection and try again.'));
@@ -40,19 +50,29 @@
   }
 
   async function initialize(onAuthStateChange) {
-    if (!configured) return { configured: false, session: null };
-    const sdk = await loadSdk();
-    client = sdk.createClient(config.url.replace(/\/$/, ''), config.publishableKey, {
-      auth: { storage, persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
-      realtime: { params: { eventsPerSecond: 2 } },
-    });
-    const { data, error } = await client.auth.getSession();
-    if (error) throw error;
-    const result = client.auth.onAuthStateChange((event, session) => {
-      queueMicrotask(() => onAuthStateChange(event, session));
-    });
-    authSubscription = result.data.subscription;
-    return { configured: true, session: data.session };
+    authListener=onAuthStateChange;
+    if(!configured)return {configured:false,session:null};
+    if(initialization)return initialization;
+    initialization=(async()=>{
+      const sdk=await loadSdk();
+      client=sdk.createClient(config.url.replace(/\/$/,''),config.publishableKey,{
+        auth:{storage,persistSession:true,autoRefreshToken:true,detectSessionInUrl:true},
+        realtime:{params:{eventsPerSecond:2}},
+      });
+      const {data,error}=await client.auth.getSession();if(error)throw error;
+      activeUserId=data.session?.user?.id||null;
+      const result=client.auth.onAuthStateChange((event,session)=>{
+        const next=session?.user?.id||null;
+        if(next!==activeUserId){clearPrivateCache();closeRealtime();}
+        if(event==='USER_UPDATED'&&next)invalidateProfile(next);
+        if(event==='SIGNED_OUT')clearPrivateCache();
+        activeUserId=next;
+        queueMicrotask(()=>authListener?.(event,session));
+      });
+      authSubscription=result.data.subscription;
+      return {configured:true,session:data.session};
+    })().catch(error=>{initialization=null;throw error;});
+    return initialization;
   }
 
   async function signUp({ fullName, email, password, emailRedirectTo }) {
@@ -89,7 +109,19 @@
     return client.auth.updateUser({ email }, { emailRedirectTo });
   }
 
-  async function getOrCreateProfile(user) {
+  function getOrCreateProfile(user,{force=false}={}) {
+    const id=user?.id;if(!id)return Promise.reject(new Error('A signed-in account is required to load its profile.'));
+    const identity=String(user.email||'')+'|'+String(user.user_metadata?.full_name||''),cached=profileCache.get(id);
+    if(!force&&cached&&cached.identity===identity&&cached.expires>Date.now())return Promise.resolve(cached.profile);
+    const version=profileVersions.get(id)||0;
+    return readOnce('profile:'+id+':'+version,async()=>{
+      const profile=await readOrCreateProfile(user);
+      if(activeUserId===id&&(profileVersions.get(id)||0)!==version)return getOrCreateProfile(user,{force:true});
+      if(activeUserId===id)profileCache.set(id,{profile,identity,expires:Date.now()+60000});
+      return profile;
+    });
+  }
+  async function readOrCreateProfile(user) {
     const requestedUserId=user?.id;
     const { data: currentAuth, error: currentAuthError } = await client.auth.getUser();
     if (currentAuthError) throw currentAuthError;
@@ -149,10 +181,12 @@
       student_data: studentData,
     }, { onConflict: 'user_id' }).select('user_id,full_name,email,student_data').single();
     if (error) throw error;
+    invalidateProfile(userId);
     return { profile: data, user: authenticatedUser };
   }
 
   async function signOut() {
+    clearPrivateCache();closeRealtime();
     return client.auth.signOut({ scope: 'local' });
   }
 
@@ -160,10 +194,14 @@
     return client.functions.invoke('delete-account', { method: 'POST' });
   }
 
-  async function loadWorkspace() {
-    const { data, error } = await client.from('student_workspaces').select('data,revision,updated_at').maybeSingle();
-    if (error) throw error;
-    return data;
+  function loadWorkspace() {
+    const owner=activeUserId;
+    if(!owner)return Promise.reject(new Error('A signed-in account is required to load its workspace.'));
+    // No stale document cache: share only an ongoing read for the same account.
+    return readOnce('workspace:'+owner,async()=>{
+      const {data,error}=await client.from('student_workspaces').select('data,revision,updated_at').eq('user_id',owner).maybeSingle();
+      if(error)throw error;return data;
+    });
   }
 
   async function saveWorkspace(data, expectedRevision) {
@@ -180,24 +218,20 @@
     if(error)throw error;return data;
   }
 
-  function subscribeWorkspace(userId, onChange) {
-    return client.channel(`acadely-workspace-${userId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'student_workspaces', filter: `user_id=eq.${userId}`,
-      }, onChange)
-      .subscribe();
+  function subscribeWorkspace(userId,onChange) {
+    const key='workspace:'+userId;if(channels.has(key))return channels.get(key);
+    const channel=client.channel(`acadely-workspace-${userId}`).on('postgres_changes',{
+      event:'*',schema:'public',table:'student_workspaces',filter:`user_id=eq.${userId}`,
+    },onChange).subscribe();channels.set(key,channel);return channel;
   }
-
-  function subscribeProfile(userId, onChange) {
-    return client.channel(`acadely-profile-${userId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'acadely_profiles', filter: `user_id=eq.${userId}`,
-      }, onChange)
-      .subscribe();
+  function subscribeProfile(userId,onChange) {
+    const key='profile:'+userId;if(channels.has(key))return channels.get(key);
+    const channel=client.channel(`acadely-profile-${userId}`).on('postgres_changes',{
+      event:'*',schema:'public',table:'acadely_profiles',filter:`user_id=eq.${userId}`,
+    },payload=>{invalidateProfile(userId);onChange(payload);}).subscribe();channels.set(key,channel);return channel;
   }
-
   function closeRealtime() {
-    if (client) client.removeAllChannels();
+    channels.clear();if(client)return client.removeAllChannels();
   }
 
   window.AcadelyCloudService = {

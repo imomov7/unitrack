@@ -3,7 +3,7 @@
 const KEY = 'unitrack-data-v1';
 const COLLECTIONS = ['courses', 'assignments', 'assessments', 'classes', 'exams', 'sessions', 'events', 'semesters', 'degreeRequirements', 'attendance', 'notificationHistory'];
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const APP_VERSION = '1.7.0';
+const APP_VERSION = '1.8.0';
 const CREATOR_PROFILE = Object.freeze({ name: 'Imomov Abdullo' });
 // Set a dedicated public business address here when one is available.
 const ACADELY_CONTACT_EMAIL = '';
@@ -40,6 +40,7 @@ let lastSyncedChangeVersion = 0;
 let cloudSyncTimer = null;
 let cloudSyncPromise = Promise.resolve();
 let cloudChannel = null;
+let realtimePauseTimer=null,realtimePaused=false,realtimeResumeBusy=false;
 let cloudWriteSnapshot = null;
 let cloudWriteVersion = 0;
 let pendingMigrationForUserId = null;
@@ -409,11 +410,11 @@ function withProfileIdentity(user, profile) {
   };
 }
 
-async function refreshAccountProfile(user) {
+async function refreshAccountProfile(user,force=false) {
   const versionAtRead=localChangeVersion;
   let profileRecord;
   try {
-    profileRecord = await window.AcadelyCloudService.getOrCreateProfile(user);
+    profileRecord = await window.AcadelyCloudService.getOrCreateProfile(user,{force});
     profileCloudReady = true;
   } catch {
     profileCloudReady = false;
@@ -560,8 +561,10 @@ async function onRemoteWorkspaceChange(payload) {
   const versionAtRead = localChangeVersion;
   const expectedUserId=accountUser.id;
   try {
-    const latest = await window.AcadelyCloudService.loadWorkspace();
-    if (!latest || accountUser?.id!==expectedUserId) return;
+    const latest = payload?.new?.data && typeof payload.new.data==='object'
+      ? {data:payload.new.data,revision:remoteRevision}
+      : await window.AcadelyCloudService.loadWorkspace();
+    if (!latest || accountUser?.id!==expectedUserId || Number(latest.revision)<=cloudRevision) return;
     if (localChangeVersion !== versionAtRead || localChangeVersion > lastSyncedChangeVersion) {
       cloudConflict = true;
       cloudReady = false;
@@ -587,8 +590,29 @@ function stableJson(value) {
 
 function attachWorkspaceRealtime(userId) {
   if (!userId) return;
+  if(document.hidden){realtimePaused=true;return;}
   if (!cloudChannel) cloudChannel = window.AcadelyCloudService.subscribeWorkspace(userId, (payload) => onRemoteWorkspaceChange(payload));
   if (profileCloudReady && !cloudProfileChannel) cloudProfileChannel = window.AcadelyCloudService.subscribeProfile(userId, (payload) => onRemoteProfileChange(payload));
+}
+
+function updateWorkspaceVisibility(){
+  clearTimeout(realtimePauseTimer);realtimePauseTimer=null;
+  if(document.hidden){
+    realtimePauseTimer=setTimeout(()=>{
+      if(!document.hidden)return;
+      window.AcadelyCloudService?.closeRealtime();cloudChannel=null;cloudProfileChannel=null;realtimePaused=true;
+    },60000);return;
+  }
+  if(!accountUser||!cloudReady||realtimeResumeBusy)return;
+  const catchUp=realtimePaused;realtimePaused=false;attachWorkspaceRealtime(accountUser.id);
+  if(!catchUp)return;
+  const owner=accountUser.id;realtimeResumeBusy=true;
+  Promise.all([
+    window.AcadelyCloudService.loadWorkspace().then(latest=>{
+      if(latest&&accountUser?.id===owner)return onRemoteWorkspaceChange({new:{...latest,user_id:owner}});
+    }),
+    refreshAccountProfile(accountUser,true),
+  ]).catch(()=>{if(accountUser?.id===owner)setCloudStatus('failed');}).finally(()=>{realtimeResumeBusy=false;});
 }
 
 function onRemoteProfileChange(payload) {
@@ -709,7 +733,12 @@ async function initializeAccountService() {
   try {
     const result = await window.AcadelyCloudService.initialize((event, session) => {
       if (event === 'PASSWORD_RECOVERY') { showAuth('reset'); return; }
-      if (session?.user) activateAccount(session.user);
+      if (session?.user) {
+        // Supabase can repeat SIGNED_IN on focus and refresh. Identity is current;
+        // profile Realtime/USER_UPDATED handles actual profile changes.
+        if(accountUser?.id===session.user.id&&cloudReady&&['SIGNED_IN','INITIAL_SESSION','TOKEN_REFRESHED'].includes(event)){accountUser=session.user;return;}
+        activateAccount(session.user);
+      }
       else if (event === 'SIGNED_OUT' || event === 'INITIAL_SESSION') {
         accountUser = null;
         cloudReady = false;
@@ -1668,6 +1697,9 @@ window.addEventListener('appinstalled', () => {
   if (currentPage === 'settings') render();
   msg('Acadely is installed on this device.');
 });
+document.addEventListener('visibilitychange',updateWorkspaceVisibility);
+window.addEventListener('pagehide',()=>{clearTimeout(realtimePauseTimer);window.AcadelyCloudService?.closeRealtime();cloudChannel=null;cloudProfileChannel=null;realtimePaused=true;});
+window.addEventListener('pageshow',event=>{if(event.persisted)updateWorkspaceVisibility();});
 window.addEventListener('online', () => { syncNetworkStatus(); retryCloudSync(); });
 window.addEventListener('offline', () => syncNetworkStatus());
 syncNetworkStatus();
